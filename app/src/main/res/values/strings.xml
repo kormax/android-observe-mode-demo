@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">observe-mode-demo</string>
+    <string name="app_name">Observe Mode Demo</string>
     <string name="aiddescription">AID description</string>
     <string name="servicedesc">Service description</string>
 </resources>

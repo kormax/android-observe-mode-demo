@@ -23,8 +23,8 @@ class ObserveModeHostApduService : HostApduService() {
         })")
 
         for (frame in frames) {
-            sendBroadcast(Intent(Constants.POLLING_FRAME_DATA_ACTION).apply {
-                putExtra(Constants.POLLING_FRAME_DATA_KEY, frame)
+            sendBroadcast(Intent(Constants.POLLING_LOOP_EVENT_ACTION).apply {
+                putExtra(Constants.POLLING_LOOP_EVENT_DATA_KEY, PollingLoopEvent(frame))
             })
         }
     }

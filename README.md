@@ -2,7 +2,7 @@
 
 <p float="left">
   <img src="./assets/SCREENSHOT.HISTORY.webp" alt="![Screenshot with history of polling events displayed]" width=200px>
-  <img src="./assets/SCREENSHOT.LOOP.webp" alt="![Screenshot with polling loop displayed]" width=200px>
+  <img src="./assets/SCREENSHOT.LOOP.webp" alt="![Screenshot with polling loop of an iPhone displayed]" width=200px>
 </p>
 
 
@@ -11,10 +11,11 @@
 This project provides a demonstration of [Observe Mode](https://developer.android.com/reference/android/nfc/NfcAdapter#isObserveModeSupported()) feature introduced in Android 15, which enables NFC hardware to listen to reader polling without responding to it.
 
 The application allows a user to look at the polling frames sent by the reader, with the following data:
-* Type (A, B, F, ON, OFF);
+* Type (A, B, F, U*, ON, OFF);
 * Delta, the amount of time since a previous polling loop frame;
 * Gain value;
 * Frame data.
+* Frame name if applicable;
 
 A user can choose between two display modes:
 * Historical data. Displays a full list of all polling loop events, including field activity events and all polling frames;
@@ -30,20 +31,18 @@ A user can choose between two display modes:
 
 # Known issues
 
-* When re-installing the app, Observe Mode might stop working until it is manually turned on and off a couple of times (this could be an issue caused by this app);
-* When launching the app initially, there could be a significant delay before the system starts notifying the app about the incoming polling loop events.
-* Android 15 Beta 1.0 does not work with the project out of the box due to a SELinux misconfiguration which makes the whole NFC subsystem inoperable. This issue can be overcome with ROOT + SELinux permissive mode, but it's advised to just flash the newest beta version with that issue fixed.
-* [Polling frame timestamp values are always zero, which will be fixed in Android 15 Beta 2](https://issuetracker.google.com/issues/335372199);
-* [Depending on NFC type and data payload, reported polling frame data may be missing or mutated](https://issuetracker.google.com/issues/334298675):
+* ~~When re-installing the app, Observe Mode might stop working until it is manually turned on and off a couple of times (this could be an issue caused by this app)~~ (Fixed in Beta 2);
+* ~~When launching the app initially, there could be a significant delay before the system starts notifying the app about the incoming polling loop events~~ (Fixed in Beta 2).
+* [Depending on NFC type and data payload, reported polling frame data may be missing, mutated, or have a mislabeled type](https://issuetracker.google.com/issues/334298675):
     - Type A:
-        - Custom frame data is always missing for long frames with or without CRC; 
-        - Common seven-bit short frames like WUPA or REQA return `5200ffff0003394203f21201017802` as data instead of `52` and `26`;
-        - Custom seven-bit short frames return no data.
+        - ~~Custom frame data is always missing for long frames with or without CRC~~ (Fixed in Beta 2); 
+        - Common seven-bit short frames like WUPA or REQA return `52` + some extra bytes of data containing previous polling frames as data instead of just `52` or `26`;
+        - ~~Custom seven-bit short frames return no data~~ (Fixed in Beta 2).
     - Type B:
-        - No issues as of Beta 1.2.
-        - Only the data for frames with valid CRC is returned, which is probably the intended behavior.
+        - Proper frames with CRC are detected as type B frames with proper data.
+        - Frames with improper CRC are detected as type U and have an extra byte containing length inside of data part.
     - Type F:
-        - No issues as of Beta 1.2.
+        - No issues as of Beta 2.
     - Type V:
         - Type V frames are unsupported by this API, so they are missing, which is the intended behavior.
 

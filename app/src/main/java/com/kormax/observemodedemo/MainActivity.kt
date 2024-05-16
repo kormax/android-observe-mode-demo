@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kormax.observemodedemo.ui.theme.ObserveModeDemoTheme
 import kotlinx.coroutines.launch
@@ -321,7 +323,8 @@ class MainActivity : ComponentActivity() {
         }
 
         try {
-            if (!nfcAdapter.setObserveModeEnabled(true)) {
+            val observeModeEnabled = nfcAdapter.isObserveModeEnabled
+            if (!observeModeEnabled && !nfcAdapter.setObserveModeEnabled(true)) {
                 errors += "Unable to enable Observe Mode"
             }
             if (!cardEmulation.removeAidsForService(component, "payment")) {
@@ -412,14 +415,20 @@ fun PollingEventItem(event: PollingLoopEvent) {
                     top = 10.dp,
                     start = 10.dp,
                     end = 10.dp
-                ), horizontalArrangement = Arrangement.SpaceBetween
+                ).fillMaxWidth(),
             ) {
                 Text(
                     text = type,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(32.dp)
                 )
+
+                Text (
+                    text = event.name
+                )
+
                 Text(
-                    text = timestamp, modifier = Modifier
+                    textAlign = TextAlign.End,
+                    text = timestamp, modifier = Modifier.fillMaxWidth()
                 )
             }
             if (dataGainDisplayed) {

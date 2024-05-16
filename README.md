@@ -51,8 +51,8 @@ A user can choose between two display modes:
 # Potential improvements
 
 * ~~Improve the UI by displaying polling frames inside of the RF field activity block instead of displaying field ON and OFF events as separate blocks.~~;
-* Add an ability to parse out and display additional information about the polling frame:
-  * Polling frame names, including custom ones;
+* Add an ability to parse out and display additional information about the polling frame (WIP):
+  * ~~Polling frame names, including custom ones~~;
   * Type B:
     * Timeslot count;
     * AFI.

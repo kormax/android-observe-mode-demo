@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.nfc.cardemulation.PollingFrame
 import android.os.Parcelable
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.parcelize.Parcelize
 import java.time.Instant
 import java.time.Instant.now
+import kotlin.experimental.and
 import kotlin.math.ceil
 
 class Constants {
@@ -32,7 +34,7 @@ class Constants {
 
 @Parcelize
 class PollingLoopEvent(
-    val delta: Long,
+    var delta: Long,
     val type: Int,
     val data: ByteArray,
     val vendorSpecificGain: Int,
@@ -43,14 +45,134 @@ class PollingLoopEvent(
         frame.timestamp, frame.type, frame.data, frame.vendorSpecificGain, now()
     )
 
+    constructor(frame: PollingFrame, delta: Long) : this(
+        frame.timestamp - delta, frame.type, frame.data, frame.vendorSpecificGain, now()
+    )
+
     companion object {
         val A = PollingFrame.POLLING_LOOP_TYPE_A
         val B = PollingFrame.POLLING_LOOP_TYPE_B
         val F = PollingFrame.POLLING_LOOP_TYPE_F
         val ON = PollingFrame.POLLING_LOOP_TYPE_ON
         val OFF = PollingFrame.POLLING_LOOP_TYPE_OFF
+        val UNKNOWN = PollingFrame.POLLING_LOOP_TYPE_UNKNOWN
+        val PLACEHOLDER = PollingLoopEvent(-1, 0, ByteArray(0), 0, now())
+    }
+
+    val name: String
+        get() {
+            val hex = data.toHexString()
+            if (type == A) {
+                if (hex.startsWith("52")) {
+                    return "WUPA"
+                } else if (hex.startsWith("26")) {
+                    return "REQA"
+                }
+            }
+
+            if (type == B) {
+                if (hex.startsWith("05")) {
+                    if ((data.last() and 0x08.toByte()) > 0) {
+                        return "WUPB"
+                    } else {
+                        return "REQB"
+                    }
+                } else if (hex == "0600") {
+                    return "INITIATE"
+                }
+            }
+
+            if (type == F) {
+                return parseFeliCaSystemCode(hex.substring(2, 6))
+            }
+
+            if (hex.startsWith("6a01")) {
+                return parseECP1(hex)
+            } else if (hex.startsWith("6a02")) {
+                return parseECP2(hex)
+            } else if (hex.startsWith("7") && hex.length == 2) {
+                return "MAGWUP_" + when(hex) {
+                    "7a" -> "A"
+                    "7b" -> "B"
+                    "7c" -> "C"
+                    "7d" -> "D"
+                    else -> "U"
+                }
+            } else if (hex.endsWith("0a")) {
+                return "ACTALL"
+            }
+
+            if (type == UNKNOWN) {
+                return "PLF"
+            }
+            return "UNKNOWN"
+        }
+}
+
+fun parseFeliCaSystemCode(systemCode: String): String {
+    Log.i("Utilities", "SystemCode" + systemCode)
+    return when(systemCode.uppercase()) {
+        "FFFF" -> "WILDCARD"
+        "0003" -> "CJRC"
+        "8008" -> "OCTOPUS"
+        "FE00" -> "COMMON_AREA"
+        "12FC" -> "NDEF"
+        else -> "UNKNOWN"
     }
 }
+
+fun parseECPTransitTCI(tci: String): String = when(tci.uppercase()) {
+    "030000" -> "VENTRA"
+    "030400" -> "HOPCARD"
+    "030002" -> "TFL"
+    "030001" -> "WMATA"
+    "030005" -> "LATAP"
+    "030007" -> "CLIPPER"
+    else -> "UNKNOWN"
+}
+
+
+fun parseECPAccessSubtype(value: String) = when(value) {
+    "00" -> "UNIVERSITY"
+    "01" -> "AUTOMOTIVE"
+    "08" -> "AUTOMOTIVE"
+    "09" -> "AUTOMOTIVE"
+    "0A" -> "AUTOMOTIVE"
+    "0B" -> "AUTOMOTIVE"
+    "06" -> "HOME"
+    else -> "UNKNOWN"
+}
+
+fun parseECP2(value: String): String {
+    if (value.length < 8) {
+        return "ECP2_UNKNOWN"
+    }
+    return "ECP2_" + when(value.substring(6, 8)) {
+        "01" -> "TRANSIT_" + parseECPTransitTCI(value.substring(10, 16))
+        "02" -> "ACCESS_" + parseECPAccessSubtype(value.substring(8, 10))
+        "03" -> "IDENTITY"
+        "05" -> "HANDOVER"
+        else -> "UNKNOWN"
+    }
+}
+
+fun parseECP1(value: String): String {
+    return "ECP1_" + when (value) {
+        "6a01000000" -> "VAS_OR_PAYMENT"
+        "6a01000001" -> "VAS_AND_PAYMENT"
+        "6a01000002" -> "VAS_ONLY"
+        "6a01000003" -> "PAY_ONLY"
+        "6a01cf0000" -> "IGNORE"
+        "6a01c30000" -> "GYMKIT"
+        else -> {
+            if (value.startsWith("6a0103")) {
+                return "ECP1_TRANSIT_" + parseECPTransitTCI(value.substring(4))
+            }
+            return "ECP1_UNKNOWN"
+        }
+    }
+}
+
 
 
 @Composable
@@ -101,11 +223,23 @@ fun Context.findActivity(): Activity? = when (this) {
 }
 
 
-fun mapTimestampToTimeText(milliseconds: Long): String {
+fun mapTimestampToTimeText(microseconds: Long): String {
     return when {
-        milliseconds < 1000 -> "$milliseconds ms"
-        milliseconds < 60_000 -> String.format("%.2f sec", milliseconds / 1000.0)
-        else -> String.format("%.2f min", milliseconds / 60000.0)
+        microseconds >= 60_000_000 -> {
+            val minutes = ceil(microseconds / 60_000_000.0).toInt()
+            "$minutes min"
+        }
+        microseconds >= 1_000_000 -> {
+            val seconds = ceil(microseconds / 1_000_000.0).toInt()
+            "$seconds s"
+        }
+        microseconds >= 1_000 -> {
+            val milliseconds = ceil(microseconds / 1_000.0).toInt()
+            "$milliseconds ms"
+        }
+        else -> {
+            "$microseconds us"
+        }
     }
 }
 
@@ -126,7 +260,8 @@ fun mapPollingFrameTypeToNameAndColor(type: Int) = when (type) {
     PollingLoopEvent.F -> ("F" to Color(0xFF7AC74F))
     PollingLoopEvent.OFF -> ("X" to Color.DarkGray)
     PollingLoopEvent.ON -> ("O" to Color.White)
-    else -> "U${type}" to Color.Magenta
+    PollingLoopEvent.UNKNOWN -> ("U" to Color.Magenta)
+    else -> "U(${type})" to Color.Magenta
 }
 
 fun mapPollingFrameTypeToName(type: Int) = mapPollingFrameTypeToNameAndColor(type).first

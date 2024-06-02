@@ -9,7 +9,7 @@ import android.util.Log
 
 class ObserveModeHostApduService : HostApduService() {
     private val TAG = this::class.java.simpleName
-    private var DELTA = -1L
+    private var LAST = -1L
 
     override fun processCommandApdu(commandApdu: ByteArray, extras: Bundle?): ByteArray {
         Log.i(TAG, "processCommandApdu(${commandApdu.toHexString()}, ${extras})")
@@ -24,12 +24,14 @@ class ObserveModeHostApduService : HostApduService() {
         })")
 
         for (frame in frames) {
-            if (frame.type == PollingFrame.POLLING_LOOP_TYPE_ON) {
-                DELTA = frames[0].timestamp
+            if (LAST == -1L || frame.timestamp < LAST) {
+                // If initial state or timestamp shifted back
+                LAST = frame.timestamp
             }
             sendBroadcast(Intent(Constants.POLLING_LOOP_EVENT_ACTION).apply {
-                putExtra(Constants.POLLING_LOOP_EVENT_DATA_KEY, PollingLoopEvent(frame, DELTA))
+                putExtra(Constants.POLLING_LOOP_EVENT_DATA_KEY, PollingLoopEvent(frame, LAST))
             })
+            LAST = frame.timestamp
         }
     }
 

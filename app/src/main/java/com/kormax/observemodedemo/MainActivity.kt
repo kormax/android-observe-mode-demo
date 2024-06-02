@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -357,36 +356,59 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PollingLoopItem(loop: Loop) {
-    return ElevatedCard(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        ), elevation = CardDefaults.cardElevation(
-            defaultElevation = 1.dp
-        ), shape = RoundedCornerShape(18.dp), modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
+    return Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            for (event in loop.events) {
-                PollingEventItem(event = event)
-            }
-        }
+        Text(
+            text = mapTimestampToTimeText(loop.startDelta),
+            //fontSize = 12.sp
+        )
 
+        ElevatedCard(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+            ), elevation = CardDefaults.cardElevation(
+                defaultElevation = 1.dp
+            ), shape = RoundedCornerShape(18.dp), modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+
+                for (event in loop.events) {
+                    // Decide if we want to display delta values between frame blocks or in them
+                    /*Text(
+                        text = mapTimestampToTimeText(event.delta),
+                        fontSize = 12.sp
+                    )*/
+                    PollingEventItem(event = event, displayDelta = true)
+                }
+                Text(
+                    text = mapTimestampToTimeText(loop.endDelta),
+                    //fontSize = 12.sp
+                )
+            }
+
+        }
     }
 }
 
 @Composable
-fun PollingEventItem(event: PollingLoopEvent) {
+fun PollingEventItem(event: PollingLoopEvent, displayDelta: Boolean = true) {
     val (typeName, color) = mapPollingFrameTypeToNameAndColor(event.type)
     val dataGainDisplayed = typeName !in Constants.POLLING_FRAME_TYPES_WITHOUT_GAIN_AND_DATA
 
-    val (type, timestamp, gain) = Triple(
-        typeName, mapTimestampToTimeText(event.delta), mapVendorSpecificGainToPowerPercentage(
+    val (type, delta, gain) = Triple(
+        typeName,
+        mapTimestampToTimeText(event.delta),
+        mapVendorSpecificGainToPowerPercentage(
             event.vendorSpecificGain
         )
     )
@@ -410,26 +432,29 @@ fun PollingEventItem(event: PollingLoopEvent) {
                 .width(IntrinsicSize.Max)
         ) {
             Row(
-                modifier = Modifier.padding(
-                    bottom = if (dataGainDisplayed) 4.dp else 10.dp,
-                    top = 10.dp,
-                    start = 10.dp,
-                    end = 10.dp
-                ).fillMaxWidth(),
+                modifier = Modifier
+                    .padding(
+                        bottom = if (dataGainDisplayed) 4.dp else 10.dp,
+                        top = 10.dp,
+                        start = 10.dp,
+                        end = 10.dp
+                    )
+                    .fillMaxWidth(),
             ) {
                 Text(
                     text = type,
                     modifier = Modifier.width(32.dp)
                 )
 
-                Text (
+                Text(
                     text = event.name
                 )
-
-                Text(
-                    textAlign = TextAlign.End,
-                    text = timestamp, modifier = Modifier.fillMaxWidth()
-                )
+                if (displayDelta) {
+                    Text(
+                        textAlign = TextAlign.End,
+                        text = delta, modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
             if (dataGainDisplayed) {
                 Divider(

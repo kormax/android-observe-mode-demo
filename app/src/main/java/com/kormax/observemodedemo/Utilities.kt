@@ -20,6 +20,7 @@ import java.time.Instant.now
 import kotlin.experimental.and
 import kotlin.math.ceil
 
+
 class Constants {
 
     companion object {
@@ -73,7 +74,7 @@ class PollingLoopEvent(
     }
 
     val name: String by lazy {
-        val hex = data.toHexString()
+        val hex = data.toHexString().lowercase()
         return@lazy when (type) {
             A -> parseTypeAFrame(hex)
             B -> parseTypeBFrame(hex)
@@ -162,15 +163,13 @@ fun parseTypeFFrame(data: String): String {
     return parseOtherFrameTypes(data)
 }
 
-fun parseFeliCaSystemCode(systemCode: String): String {
-    return when (systemCode.uppercase()) {
-        "FFFF" -> "WILDCARD"
-        "0003" -> "CJRC"
-        "8008" -> "OCTOPUS"
-        "FE00" -> "COMMON"
-        "12FC" -> "NDEF"
-        else -> "UNKNOWN"
-    }
+fun parseFeliCaSystemCode(systemCode: String) = when (systemCode.uppercase()) {
+    "FFFF" -> "WILDCARD"
+    "0003" -> "CJRC"
+    "8008" -> "OCTOPUS"
+    "FE00" -> "COMMON"
+    "12FC" -> "NDEF"
+    else -> "UNKNOWN"
 }
 
 fun parseECPTransitTCI(tci: String): String = when (tci.uppercase()) {
@@ -184,7 +183,7 @@ fun parseECPTransitTCI(tci: String): String = when (tci.uppercase()) {
     else -> "UNKNOWN"
 }
 
-fun parseECPAccessSubtype(value: String) = when (value) {
+fun parseECPAccessSubtype(value: String) = when (value.uppercase()) {
     "00" -> "UNIVERSITY"
     "01" -> "AUTOMOTIVE"
     "08" -> "AUTOMOTIVE"
@@ -274,26 +273,22 @@ fun Context.findActivity(): Activity? = when (this) {
 }
 
 
-fun mapTimestampToTimeText(microseconds: Long): String {
-    return when {
-        microseconds >= 60_000_000 -> {
-            val minutes = ceil(microseconds / 60_000_000.0).toInt()
-            "$minutes min"
-        }
-
-        microseconds >= 1_000_000 -> {
-            val seconds = ceil(microseconds / 1_000_000.0).toInt()
-            "$seconds s"
-        }
-
-        microseconds >= 1_000 -> {
-            val milliseconds = ceil(microseconds / 1_000.0).toInt()
-            "$milliseconds ms"
-        }
-
-        else -> {
-            "$microseconds us"
-        }
+fun mapDeltaToTimeText(microseconds: Long) = when {
+    microseconds == -1L -> "Continuous"
+    microseconds >= 60_000_000 -> {
+        val minutes = ceil(microseconds / 60_000_000.0).toInt()
+        "$minutes min"
+    }
+    microseconds >= 1_000_000 -> {
+        val seconds = ceil(microseconds / 1_000_000.0).toInt()
+        "$seconds s"
+    }
+    microseconds >= 1_000 -> {
+        val milliseconds = ceil(microseconds / 1_000.0).toInt()
+        "$milliseconds ms"
+    }
+    else -> {
+        "$microseconds us"
     }
 }
 

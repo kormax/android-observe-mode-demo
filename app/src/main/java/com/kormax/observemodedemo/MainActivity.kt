@@ -55,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kormax.observemodedemo.ui.theme.ObserveModeDemoTheme
@@ -80,15 +81,11 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
 
             var errors: List<String> by remember {
-                mutableStateOf(
-                    this.errors
-                )
+                mutableStateOf(this.errors)
             }
 
             var loopEvents: List<PollingLoopEvent> by remember {
-                mutableStateOf(
-                    listOf()
-                )
+                mutableStateOf(listOf())
             }
 
             var currentLoop: List<Loop> by remember {
@@ -361,13 +358,13 @@ fun PollingLoopItem(loop: Loop) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = mapTimestampToTimeText(loop.startDelta),
+            text = mapDeltaToTimeText(loop.startDelta),
             //fontSize = 12.sp
         )
 
         ElevatedCard(
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             ), elevation = CardDefaults.cardElevation(
                 defaultElevation = 1.dp
             ), shape = RoundedCornerShape(18.dp), modifier = Modifier
@@ -391,7 +388,7 @@ fun PollingLoopItem(loop: Loop) {
                     PollingEventItem(event = event, displayDelta = true)
                 }
                 Text(
-                    text = mapTimestampToTimeText(loop.endDelta),
+                    text = mapDeltaToTimeText(loop.endDelta),
                     //fontSize = 12.sp
                 )
             }
@@ -407,7 +404,7 @@ fun PollingEventItem(event: PollingLoopEvent, displayDelta: Boolean = true) {
 
     val (type, delta, gain) = Triple(
         typeName,
-        mapTimestampToTimeText(event.delta),
+        mapDeltaToTimeText(event.delta),
         mapVendorSpecificGainToPowerPercentage(
             event.vendorSpecificGain
         )
@@ -415,7 +412,8 @@ fun PollingEventItem(event: PollingLoopEvent, displayDelta: Boolean = true) {
 
     ElevatedCard(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                .copy(alpha = 0.8f).compositeOver(color.copy(alpha = 0.2f)),
         ), elevation = CardDefaults.cardElevation(
             defaultElevation = 8.dp
         ), modifier = Modifier

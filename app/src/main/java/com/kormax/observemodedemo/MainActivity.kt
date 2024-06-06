@@ -109,12 +109,15 @@ class MainActivity : ComponentActivity() {
                 // We update loop info only if more than two events were received, or if a field off event occured
                 if (event.type == PollingLoopEvent.OFF || eventsSinceLastUpdate > 2) {
                     eventsSinceLastUpdate = 0
-                    val rawPollingFrames = loopEvents.takeLast(48).toTypedArray()
+                    // Sample 64 last frames.
+                    val rawPollingFrames = loopEvents.takeLast(64).toTypedArray()
 
+                    // Find a sequence that repeats at least two times back-to-back
                     val unalignedLoop = largestRepeatingSequence(
                         rawPollingFrames,
                         { it1, it2 -> it1.type == it2.type && it1.data.contentEquals(it2.data) },
                     )
+                    // Attempt to align polling loop sequence based on general assumptions about polling loops
                     val loop = alignPollingLoop(unalignedLoop)
 
                     if (loop.isNotEmpty()) {

@@ -22,14 +22,12 @@ import kotlin.math.ceil
 
 
 class Constants {
-
     companion object {
         const val POLLING_LOOP_EVENT_ACTION = "com.kormax.observemodedemo.POLLING_FRAME_DATA"
         const val POLLING_LOOP_EVENT_DATA_KEY = "frame"
 
         val POLLING_FRAME_TYPES_WITHOUT_GAIN_AND_DATA = setOf("X", "O")
     }
-
 }
 
 
@@ -87,21 +85,31 @@ class PollingLoopEvent(
 
 
 fun parseOtherFrameTypes(data: String): String {
+    // French stuff based on Type B with valid CRC
+    if (data == "010b3f80") {
+        // Innovatron, B' prime
+        return "APGEN"
+    }
     if (data == "0600") {
+        // ST SRX
         return "INITIATE"
     }
+    if (data == "10") {
+        // ASK CTX REQT
+        return "REQT"
+    }
 
-    // HLTA/HLTB commands should not be sent during discovery if nothing was detected
-    // but some readers do nonetheless
+    // SLP_REQ shouldn't be sent at discovery if nothing was found, but some readers do nonetheless
     if (data == "5000") {
-        // ISO14443-3-A HLTA
+        // ISO14443-3A HLTA
         return "HLTA"
     }
     if (data.startsWith("50") && data.length == 10) {
-        // ISO14443-3-B HLTB
+        // ISO14443-3B HLTB
         return "HLTB"
     }
 
+    // Picopass, based on Type B (legacy) and V. Does not use proper CRC
     if (data.length in 2..4) {
         if (data.endsWith("0a")) {
             // Picopass wakeup
@@ -114,7 +122,7 @@ fun parseOtherFrameTypes(data: String): String {
         }
     }
 
-    // ECP
+    // ECP, based on Type A B F
     if (data.startsWith("6a") && data.length >= 8) {
         return "ECP" + when (data.substring(2, 4)) {
             "01" -> "1_" + parseECP1(data)
@@ -123,16 +131,25 @@ fun parseOtherFrameTypes(data: String): String {
         }
     }
 
-    // Magsafe Wakeup
+    // MagSafe, based on Type A
     if (data.startsWith("7") && data.length == 2) {
-        return "MAGWUP_" + when (data) {
-            "7a" -> "A"
-            "7b" -> "B"
-            "7c" -> "C"
-            "7d" -> "D"
+        return "MAGWUP" + when (data) {
+            "7a" -> "1"
+            "7b" -> "2"
+            "7c" -> "3"
+            "7d" -> "4"
             else -> "U"
         }
     }
+
+    // Mifare magic card wakeup, based on Type A
+    if (data.length == 2) {
+        when(data) {
+            "40", "20" -> return "WUPC1"
+            "43", "23" -> return "WUPC2"
+        }
+    }
+
     return "PLF"
 }
 
@@ -163,33 +180,35 @@ fun parseTypeFFrame(data: String): String {
     return parseOtherFrameTypes(data)
 }
 
-fun parseFeliCaSystemCode(systemCode: String) = when (systemCode.uppercase()) {
-    "FFFF" -> "WILDCARD"
+fun parseFeliCaSystemCode(systemCode: String) = when (systemCode.lowercase()) {
+    "ffff" -> "WILDCARD"
     "0003" -> "CJRC"
     "8008" -> "OCTOPUS"
-    "FE00" -> "COMMON"
-    "12FC" -> "NDEF"
+    "fe00" -> "COMMON"
+    "12fc" -> "NDEF"
+    "88b4" -> "LITE"
+    "957a" -> "ID"
     else -> "UNKNOWN"
 }
 
-fun parseECPTransitTCI(tci: String): String = when (tci.uppercase()) {
+fun parseECPTransitTCI(tci: String): String = when (tci.lowercase()) {
     "030000" -> "VENTRA"
     "030400" -> "HOPCARD"
     "030002" -> "TFL"
     "030001" -> "WMATA"
     "030005" -> "LATAP"
     "030007" -> "CLIPPER"
-    "03095A" -> "NAVIGO"
+    "03095a" -> "NAVIGO"
     else -> "UNKNOWN"
 }
 
-fun parseECPAccessSubtype(value: String) = when (value.uppercase()) {
+fun parseECPAccessSubtype(value: String) = when (value.lowercase()) {
     "00" -> "UNIVERSITY"
     "01" -> "AUTOMOTIVE"
     "08" -> "AUTOMOTIVE"
     "09" -> "AUTOMOTIVE"
-    "0A" -> "AUTOMOTIVE"
-    "0B" -> "AUTOMOTIVE"
+    "0a" -> "AUTOMOTIVE"
+    "0b" -> "AUTOMOTIVE"
     "06" -> "HOME"
     else -> "UNKNOWN"
 }
@@ -348,7 +367,7 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
     // Attempt to align the polling loop by calculating best rotation using the following rules:
     //
     // 1. If there are rotations which start with an ON event and end with an OFF event, discard all other rotations
-    // 2. Give 2 points to loops that follow the A -> B -> F order (Unknown frame type is ignored) for each type
+    // 2. Give 2 points for each type for loops that follow the A -> B -> F order (Unknown frame type is ignored)
     // 3. If there are empty ON and OFF event pairs, give 1 point if they are placed at the end
     //
     // As a potential improvement, delta values could also be taken into account to find proper alignment

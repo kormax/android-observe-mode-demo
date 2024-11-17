@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.nfc.cardemulation.PollingFrame
 import android.os.Parcelable
+import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -46,19 +47,34 @@ data class Loop(
 
 @Parcelize
 class PollingLoopEvent(
-    var delta: Long,
+    val timestamp: Long,
     val type: Int,
     val data: ByteArray,
     val vendorSpecificGain: Int,
-    val timestamp: Instant = now()
+    var delta: Long = -1,
+    val at: Long = SystemClock.elapsedRealtimeNanos()
 ) : Parcelable {
 
     constructor(frame: PollingFrame) : this(
-        frame.timestamp, frame.type, frame.data, frame.vendorSpecificGain, now()
+        frame.timestamp,
+        frame.type,
+        frame.data,
+        frame.vendorSpecificGain,
+        -1,
+        SystemClock.elapsedRealtimeNanos()
     )
 
-    constructor(frame: PollingFrame, delta: Long) : this(
-        frame.timestamp - delta, frame.type, frame.data, frame.vendorSpecificGain, now()
+    constructor(
+        frame: PollingFrame,
+        delta: Long,
+        at: Long = SystemClock.elapsedRealtimeNanos()
+    ) : this(
+        frame.timestamp,
+        frame.type,
+        frame.data,
+        frame.vendorSpecificGain,
+        frame.timestamp - delta,
+        at,
     )
 
     companion object {
@@ -68,7 +84,6 @@ class PollingLoopEvent(
         val ON = PollingFrame.POLLING_LOOP_TYPE_ON
         val OFF = PollingFrame.POLLING_LOOP_TYPE_OFF
         val UNKNOWN = PollingFrame.POLLING_LOOP_TYPE_UNKNOWN
-        val PLACEHOLDER = PollingLoopEvent(-1, 0, ByteArray(0), 0, now())
     }
 
     val name: String by lazy {
@@ -144,7 +159,7 @@ fun parseOtherFrameTypes(data: String): String {
 
     // Mifare magic card wakeup, based on Type A
     if (data.length == 2) {
-        when(data) {
+        when (data) {
             "40", "20" -> return "WUPC1"
             "43", "23" -> return "WUPC2"
         }
@@ -298,14 +313,17 @@ fun mapDeltaToTimeText(microseconds: Long) = when {
         val minutes = ceil(microseconds / 60_000_000.0).toInt()
         "$minutes min"
     }
+
     microseconds >= 1_000_000 -> {
         val seconds = ceil(microseconds / 1_000_000.0).toInt()
         "$seconds s"
     }
+
     microseconds >= 1_000 -> {
         val milliseconds = ceil(microseconds / 1_000.0).toInt()
         "$milliseconds ms"
     }
+
     else -> {
         "$microseconds us"
     }
@@ -377,7 +395,7 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
     }
 
     // Stores a pair of score and rotation values
-    var biggest = Pair(0, 0)
+    var biggest = Pair(0.0, 0)
 
     val rotations = events.indices.filter {
         events.get(0, it).type == PollingLoopEvent.ON
@@ -385,8 +403,14 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
     }.ifEmpty { events.indices.toList() }
 
     for (rotation in rotations) {
-        var score = 0
+        var score = 0.0
         var previousTech = -1
+
+        // To provide stability in continuous loops
+        // assign score based on length
+        score += events.get(0, rotation).data.size * 0.001
+        // first byte
+        score += events.get(0, rotation).data.getOrElse(0, {"00".hexToByte()}) * 0.00001
 
         for (index in events.indices) {
             val currentTech =
@@ -477,26 +501,26 @@ fun <T> Array<T>.equalTo(other: Array<T>, comparator: (T, T) -> Boolean): Boolea
 }
 
 
-fun mapPollingEventsToLoopActivity(frames: Array<PollingLoopEvent>): List<Loop> {
+fun mapPollingEventsToLoopActivity(events: Array<PollingLoopEvent>): List<Loop> {
     val result = mutableListOf<Loop>()
 
     var startDelta = -1L
     var elements = emptyArray<PollingLoopEvent>()
     var currentIndex = 0
-    for (frame in frames) {
-        if (frame.type == PollingFrame.POLLING_LOOP_TYPE_OFF) {
+    for (event in events) {
+        if (event.type == PollingFrame.POLLING_LOOP_TYPE_OFF) {
             currentIndex = 0
             result += Loop(
-                startDelta, frame.delta, elements.map { it }.toTypedArray(), now()
+                startDelta, event.delta, elements.map { it }.toTypedArray(), now()
             )
             elements = emptyArray<PollingLoopEvent>()
             startDelta = -1
             continue
         }
-        if (currentIndex == 0 && frame.type == PollingFrame.POLLING_LOOP_TYPE_ON) {
-            startDelta = frame.delta
+        if (currentIndex == 0 && event.type == PollingFrame.POLLING_LOOP_TYPE_ON) {
+            startDelta = event.delta
         } else {
-            elements += frame
+            elements += event
         }
         currentIndex += 1
     }

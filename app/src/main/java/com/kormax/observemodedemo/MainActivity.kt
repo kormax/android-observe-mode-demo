@@ -231,7 +231,7 @@ class MainActivity : ComponentActivity() {
 
                                     when (currentMode) {
                                         DisplayMode.LOOP -> items(currentLoop.size,
-                                            { "${loopEvents.getOrNull(it)?.timestamp?.nano}:${it}" }) { index ->
+                                            { "${loopEvents.getOrNull(it)?.at}:${it}" }) { index ->
                                             val loop = currentLoop.getOrNull(index) ?: return@items
                                             PollingLoopItem(
                                                 loop = loop
@@ -239,10 +239,10 @@ class MainActivity : ComponentActivity() {
                                         }
 
                                         DisplayMode.HISTORY -> items(loopEvents.size,
-                                            { "${loopEvents.getOrNull(it)?.timestamp?.nano}" }) { index ->
+                                            { "${loopEvents.getOrNull(it)?.at}" }) { index ->
                                             val event = loopEvents.getOrNull(index) ?: return@items
                                             PollingEventItem(
-                                                event = event
+                                                event = event, display = "timestamp"
                                             )
                                         }
                                     }
@@ -388,7 +388,7 @@ fun PollingLoopItem(loop: Loop) {
                         text = mapTimestampToTimeText(event.delta),
                         fontSize = 12.sp
                     )*/
-                    PollingEventItem(event = event, displayDelta = true)
+                    PollingEventItem(event = event, display = "delta")
                 }
                 Text(
                     text = mapDeltaToTimeText(loop.endDelta),
@@ -401,13 +401,17 @@ fun PollingLoopItem(loop: Loop) {
 }
 
 @Composable
-fun PollingEventItem(event: PollingLoopEvent, displayDelta: Boolean = true) {
+fun PollingEventItem(event: PollingLoopEvent, display: String = "delta") {
     val (typeName, color) = mapPollingFrameTypeToNameAndColor(event.type)
     val dataGainDisplayed = typeName !in Constants.POLLING_FRAME_TYPES_WITHOUT_GAIN_AND_DATA
 
     val (type, delta, gain) = Triple(
         typeName,
-        mapDeltaToTimeText(event.delta),
+        when(display) {
+            "delta" -> mapDeltaToTimeText(event.delta)
+            "timestamp" -> event.timestamp.toString()
+            else -> ""
+        },
         mapVendorSpecificGainToPowerPercentage(
             event.vendorSpecificGain
         )
@@ -450,7 +454,7 @@ fun PollingEventItem(event: PollingLoopEvent, displayDelta: Boolean = true) {
                 Text(
                     text = event.name
                 )
-                if (displayDelta) {
+                if (display != "") {
                     Text(
                         textAlign = TextAlign.End,
                         text = delta, modifier = Modifier.fillMaxWidth()

@@ -15,12 +15,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.parcelize.Parcelize
 import java.time.Instant
 import java.time.Instant.now
 import kotlin.experimental.and
 import kotlin.math.ceil
-
+import kotlinx.parcelize.Parcelize
 
 class Constants {
     companion object {
@@ -31,25 +30,20 @@ class Constants {
     }
 }
 
-
 enum class DisplayMode {
-    HISTORY, LOOP
+    HISTORY,
+    LOOP,
 }
-
 
 data class Loop(
     val startDelta: Long,
     val endDelta: Long,
     val events: Array<PollingLoopEvent>,
-    val timestamp: Instant = now()
+    val timestamp: Instant = now(),
 )
 
 @Parcelize
-class PollingFrameNotification(
-    val frames: Array<PollingFrame>,
-    val at: Long
-) : Parcelable
-
+class PollingFrameNotification(val frames: Array<PollingFrame>, val at: Long) : Parcelable
 
 @Parcelize
 class PollingLoopEvent(
@@ -58,22 +52,24 @@ class PollingLoopEvent(
     val data: ByteArray,
     val vendorSpecificGain: Int,
     var delta: Long = -1,
-    val at: Long = SystemClock.elapsedRealtimeNanos()
+    val at: Long = SystemClock.elapsedRealtimeNanos(),
 ) : Parcelable {
 
-    constructor(frame: PollingFrame) : this(
+    constructor(
+        frame: PollingFrame
+    ) : this(
         frame.timestamp,
         frame.type,
         frame.data,
         frame.vendorSpecificGain,
         -1,
-        SystemClock.elapsedRealtimeNanos()
+        SystemClock.elapsedRealtimeNanos(),
     )
 
     constructor(
         frame: PollingFrame,
         delta: Long,
-        at: Long = SystemClock.elapsedRealtimeNanos()
+        at: Long = SystemClock.elapsedRealtimeNanos(),
     ) : this(
         frame.timestamp,
         frame.type,
@@ -84,14 +80,7 @@ class PollingLoopEvent(
     )
 
     fun withDelta(delta: Long): PollingLoopEvent {
-        return PollingLoopEvent(
-            timestamp,
-            type,
-            data,
-            vendorSpecificGain,
-            delta,
-            at,
-        )
+        return PollingLoopEvent(timestamp, type, data, vendorSpecificGain, delta, at)
     }
 
     companion object {
@@ -109,12 +98,12 @@ class PollingLoopEvent(
             A -> parseTypeAFrame(hex)
             B -> parseTypeBFrame(hex)
             F -> parseTypeFFrame(hex)
-            ON, OFF -> ""
+            ON,
+            OFF -> ""
             else -> parseOtherFrameTypes(hex)
         }
     }
 }
-
 
 fun parseOtherFrameTypes(data: String): String {
     // French stuff based on Type B with valid CRC
@@ -156,29 +145,33 @@ fun parseOtherFrameTypes(data: String): String {
 
     // ECP, based on Type A B F
     if (data.startsWith("6a") && data.length >= 8) {
-        return "ECP" + when (data.substring(2, 4)) {
-            "01" -> "1_" + parseECP1(data)
-            "02" -> "2_" + parseECP2(data)
-            else -> "_UNKNOWN"
-        }
+        return "ECP" +
+            when (data.substring(2, 4)) {
+                "01" -> "1_" + parseECP1(data)
+                "02" -> "2_" + parseECP2(data)
+                else -> "_UNKNOWN"
+            }
     }
 
     // MagSafe, based on Type A
     if (data.startsWith("7") && data.length == 2) {
-        return "MAGWUP" + when (data) {
-            "7a" -> "1"
-            "7b" -> "2"
-            "7c" -> "3"
-            "7d" -> "4"
-            else -> "U"
-        }
+        return "MAGWUP" +
+            when (data) {
+                "7a" -> "1"
+                "7b" -> "2"
+                "7c" -> "3"
+                "7d" -> "4"
+                else -> "U"
+            }
     }
 
     // Mifare magic card wakeup, based on Type A
     if (data.length == 2) {
         when (data) {
-            "40", "20" -> return "WUPC1"
-            "43", "23" -> return "WUPC2"
+            "40",
+            "20" -> return "WUPC1"
+            "43",
+            "23" -> return "WUPC2"
         }
     }
 
@@ -212,38 +205,41 @@ fun parseTypeFFrame(data: String): String {
     return parseOtherFrameTypes(data)
 }
 
-fun parseFeliCaSystemCode(systemCode: String) = when (systemCode.lowercase()) {
-    "ffff" -> "WILDCARD"
-    "0003" -> "CJRC"
-    "8008" -> "OCTOPUS"
-    "fe00" -> "COMMON"
-    "12fc" -> "NDEF"
-    "88b4" -> "LITE"
-    "957a" -> "ID"
-    else -> "UNKNOWN"
-}
+fun parseFeliCaSystemCode(systemCode: String) =
+    when (systemCode.lowercase()) {
+        "ffff" -> "WILDCARD"
+        "0003" -> "CJRC"
+        "8008" -> "OCTOPUS"
+        "fe00" -> "COMMON"
+        "12fc" -> "NDEF"
+        "88b4" -> "LITE"
+        "957a" -> "ID"
+        else -> "UNKNOWN"
+    }
 
-fun parseECPTransitTCI(tci: String): String = when (tci.lowercase()) {
-    "030000" -> "VENTRA"
-    "030400" -> "HOPCARD"
-    "030002" -> "TFL"
-    "030001" -> "WMATA"
-    "030005" -> "LATAP"
-    "030007" -> "CLIPPER"
-    "03095a" -> "NAVIGO"
-    else -> "UNKNOWN"
-}
+fun parseECPTransitTCI(tci: String): String =
+    when (tci.lowercase()) {
+        "030000" -> "VENTRA"
+        "030400" -> "HOPCARD"
+        "030002" -> "TFL"
+        "030001" -> "WMATA"
+        "030005" -> "LATAP"
+        "030007" -> "CLIPPER"
+        "03095a" -> "NAVIGO"
+        else -> "UNKNOWN"
+    }
 
-fun parseECPAccessSubtype(value: String) = when (value.lowercase()) {
-    "00" -> "UNIVERSITY"
-    "01" -> "AUTOMOTIVE"
-    "08" -> "AUTOMOTIVE"
-    "09" -> "AUTOMOTIVE"
-    "0a" -> "AUTOMOTIVE"
-    "0b" -> "AUTOMOTIVE"
-    "06" -> "HOME"
-    else -> "UNKNOWN"
-}
+fun parseECPAccessSubtype(value: String) =
+    when (value.lowercase()) {
+        "00" -> "UNIVERSITY"
+        "01" -> "AUTOMOTIVE"
+        "08" -> "AUTOMOTIVE"
+        "09" -> "AUTOMOTIVE"
+        "0a" -> "AUTOMOTIVE"
+        "0b" -> "AUTOMOTIVE"
+        "06" -> "HOME"
+        else -> "UNKNOWN"
+    }
 
 fun parseECP2(value: String): String {
     if (value.length < 8) {
@@ -275,11 +271,8 @@ fun parseECP1(value: String): String {
     }
 }
 
-
 @Composable
-fun SystemBroadcastReceiver(
-    systemAction: String, onSystemEvent: (intent: Intent?) -> Unit
-) {
+fun SystemBroadcastReceiver(systemAction: String, onSystemEvent: (intent: Intent?) -> Unit) {
     // Grab the current context in this part of the UI tree
     val context = LocalContext.current
 
@@ -289,20 +282,18 @@ fun SystemBroadcastReceiver(
     // If either context or systemAction changes, unregister and register again
     DisposableEffect(context, systemAction) {
         val intentFilter = IntentFilter(systemAction)
-        val broadcast = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                currentOnSystemEvent(intent)
+        val broadcast =
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    currentOnSystemEvent(intent)
+                }
             }
-        }
 
         context.registerReceiver(broadcast, intentFilter, Context.RECEIVER_EXPORTED)
         // When the effect leaves the Composition, remove the callback
-        onDispose {
-            context.unregisterReceiver(broadcast)
-        }
+        onDispose { context.unregisterReceiver(broadcast) }
     }
 }
-
 
 @Composable
 fun EnforceScreenOrientation(orientation: Int) {
@@ -311,41 +302,39 @@ fun EnforceScreenOrientation(orientation: Int) {
         val activity = context.findActivity() ?: return@DisposableEffect onDispose {}
         val originalOrientation = activity.requestedOrientation
         activity.requestedOrientation = orientation
-        onDispose {
-            activity.requestedOrientation = originalOrientation
+        onDispose { activity.requestedOrientation = originalOrientation }
+    }
+}
+
+fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
+
+fun mapDeltaToTimeText(microseconds: Long) =
+    when {
+        microseconds == -1L -> "Continuous"
+        microseconds >= 60_000_000 -> {
+            val minutes = ceil(microseconds / 60_000_000.0).toInt()
+            "$minutes min"
+        }
+
+        microseconds >= 1_000_000 -> {
+            val seconds = ceil(microseconds / 1_000_000.0).toInt()
+            "$seconds s"
+        }
+
+        microseconds >= 1_000 -> {
+            val milliseconds = ceil(microseconds / 1_000.0).toInt()
+            "$milliseconds ms"
+        }
+
+        else -> {
+            "$microseconds us"
         }
     }
-}
-
-fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
-
-fun mapDeltaToTimeText(microseconds: Long) = when {
-    microseconds == -1L -> "Continuous"
-    microseconds >= 60_000_000 -> {
-        val minutes = ceil(microseconds / 60_000_000.0).toInt()
-        "$minutes min"
-    }
-
-    microseconds >= 1_000_000 -> {
-        val seconds = ceil(microseconds / 1_000_000.0).toInt()
-        "$seconds s"
-    }
-
-    microseconds >= 1_000 -> {
-        val milliseconds = ceil(microseconds / 1_000.0).toInt()
-        "$milliseconds ms"
-    }
-
-    else -> {
-        "$microseconds us"
-    }
-}
-
 
 fun mapVendorSpecificGainToPowerPercentage(vendorSpecificGain: Int): String {
     // Currently only Google Pixel with the ST chip have observe mode available, so this works fine
@@ -356,33 +345,33 @@ fun mapVendorSpecificGainToPowerPercentage(vendorSpecificGain: Int): String {
     return "$percentage%"
 }
 
-
-fun mapPollingFrameTypeToNameAndColor(type: Int) = when (type) {
-    PollingLoopEvent.A -> ("A" to Color(0xFF0E79B2))
-    PollingLoopEvent.B -> ("B" to Color(0xFFF53E54))
-    PollingLoopEvent.F -> ("F" to Color(0xFF7AC74F))
-    PollingLoopEvent.OFF -> ("X" to Color.DarkGray)
-    PollingLoopEvent.ON -> ("O" to Color.White)
-    PollingLoopEvent.UNKNOWN -> ("U" to Color.Magenta)
-    else -> "U(${type})" to Color.Magenta
-}
+fun mapPollingFrameTypeToNameAndColor(type: Int) =
+    when (type) {
+        PollingLoopEvent.A -> ("A" to Color(0xFF0E79B2))
+        PollingLoopEvent.B -> ("B" to Color(0xFFF53E54))
+        PollingLoopEvent.F -> ("F" to Color(0xFF7AC74F))
+        PollingLoopEvent.OFF -> ("X" to Color.DarkGray)
+        PollingLoopEvent.ON -> ("O" to Color.White)
+        PollingLoopEvent.UNKNOWN -> ("U" to Color.Magenta)
+        else -> "U(${type})" to Color.Magenta
+    }
 
 fun mapPollingFrameTypeToName(type: Int) = mapPollingFrameTypeToNameAndColor(type).first
 
 fun mapPollingLoopToString(frames: Array<PollingFrame>) =
     frames.map { mapPollingFrameTypeToName(it.type) }.joinToString("") { it }
 
-fun mapPollingLoopEventToString(event: PollingLoopEvent): String = "${
+fun mapPollingLoopEventToString(event: PollingLoopEvent): String =
+    "${
     mapPollingFrameTypeToName(event.type)
 }(${event.data.toHexString()})[${event.timestamp}]"
-
 
 fun mapPollingLoopEventsToString(events: Collection<PollingLoopEvent>): String =
     "${events.map { mapPollingLoopEventToString(it) }}"
 
-
 inline fun <reified T> smallestRepeatingSequence(
-    arr: Array<T>, noinline comparator: (T, T) -> Boolean
+    arr: Array<T>,
+    noinline comparator: (T, T) -> Boolean,
 ): Array<T> {
     val n = arr.size
     for (length in 1..ceil((n / 2).toDouble()).toInt()) {
@@ -396,24 +385,27 @@ inline fun <reified T> smallestRepeatingSequence(
     return emptyArray()
 }
 
-
-val fieldTypeToIndex = hashMapOf(
-    //PollingFrame.POLLING_LOOP_TYPE_ON to 1,
-    PollingFrame.POLLING_LOOP_TYPE_A to 2,
-    PollingFrame.POLLING_LOOP_TYPE_B to 3,
-    PollingFrame.POLLING_LOOP_TYPE_F to 4,
-    //PollingFrame.POLLING_LOOP_TYPE_V to 5
-    //PollingFrame.POLLING_LOOP_TYPE_OFF to 6
-)
+val fieldTypeToIndex =
+    hashMapOf(
+        // PollingFrame.POLLING_LOOP_TYPE_ON to 1,
+        PollingFrame.POLLING_LOOP_TYPE_A to 2,
+        PollingFrame.POLLING_LOOP_TYPE_B to 3,
+        PollingFrame.POLLING_LOOP_TYPE_F to 4,
+        // PollingFrame.POLLING_LOOP_TYPE_V to 5
+        // PollingFrame.POLLING_LOOP_TYPE_OFF to 6
+    )
 
 fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
     // Attempt to align the polling loop by calculating best rotation using the following rules:
     //
-    // 1. If there are rotations which start with an ON event and end with an OFF event, discard all other rotations
-    // 2. Give 2 points for each type for loops that follow the A -> B -> F order (Unknown frame type is ignored)
+    // 1. If there are rotations which start with an ON event and end with an OFF event, discard all
+    // other rotations
+    // 2. Give 2 points for each type for loops that follow the A -> B -> F order (Unknown frame
+    // type is ignored)
     // 3. If there are empty ON and OFF event pairs, give 1 point if they are placed at the end
     //
-    // As a potential improvement, delta values could also be taken into account to find proper alignment
+    // As a potential improvement, delta values could also be taken into account to find proper
+    // alignment
 
     if (events.size <= 1) {
         return events
@@ -422,10 +414,13 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
     // Stores a pair of score and rotation values
     var biggest = Pair(0.0, 0)
 
-    val rotations = events.indices.filter {
-        events.get(0, it).type == PollingLoopEvent.ON
-                && events.get(events.size - 1, it).type == PollingLoopEvent.OFF
-    }.ifEmpty { events.indices.toList() }
+    val rotations =
+        events.indices
+            .filter {
+                events.get(0, it).type == PollingLoopEvent.ON &&
+                    events.get(events.size - 1, it).type == PollingLoopEvent.OFF
+            }
+            .ifEmpty { events.indices.toList() }
 
     for (rotation in rotations) {
         var score = 0.0
@@ -438,8 +433,7 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
         score += events.get(0, rotation).data.getOrElse(0, { "00".hexToByte() }) * 0.000000001
 
         for (index in events.indices) {
-            val currentTech =
-                fieldTypeToIndex.getOrDefault(events.get(index, rotation).type, -1)
+            val currentTech = fieldTypeToIndex.getOrDefault(events.get(index, rotation).type, -1)
             if (previousTech < currentTech) {
                 score += 2
                 previousTech = currentTech
@@ -452,8 +446,8 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
         // If rotated polling loop does not start with an empty pair of ON and OFF events
         // (instead, ends with one), increase score
         if (
-            events.get(events.size - 2, rotation).type == PollingLoopEvent.ON
-            && events.get(events.size - 1, rotation).type == PollingLoopEvent.OFF
+            events.get(events.size - 2, rotation).type == PollingLoopEvent.ON &&
+                events.get(events.size - 1, rotation).type == PollingLoopEvent.OFF
         ) {
             score += 1
         }
@@ -498,9 +492,7 @@ fun <T> Array<T>.get(index: Int, rotation: Int): T {
     return this[(index + rotation) % this.size]
 }
 
-fun <T> Array<T>.containsSubArray(
-    subArray: Array<T>, comparator: (T, T) -> Boolean
-): Boolean {
+fun <T> Array<T>.containsSubArray(subArray: Array<T>, comparator: (T, T) -> Boolean): Boolean {
     if (subArray.isEmpty()) return true
 
     var subIndex = 0
@@ -528,7 +520,6 @@ fun <T> Array<T>.equalTo(other: Array<T>, comparator: (T, T) -> Boolean): Boolea
     return true
 }
 
-
 fun mapPollingEventsToLoopActivity(events: Array<PollingLoopEvent>): List<Loop> {
     val result = mutableListOf<Loop>()
 
@@ -538,9 +529,7 @@ fun mapPollingEventsToLoopActivity(events: Array<PollingLoopEvent>): List<Loop> 
     for (event in events) {
         if (event.type == PollingFrame.POLLING_LOOP_TYPE_OFF) {
             currentIndex = 0
-            result += Loop(
-                startDelta, event.delta, elements.map { it }.toTypedArray(), now()
-            )
+            result += Loop(startDelta, event.delta, elements.map { it }.toTypedArray(), now())
             elements = emptyArray<PollingLoopEvent>()
             startDelta = -1
             continue

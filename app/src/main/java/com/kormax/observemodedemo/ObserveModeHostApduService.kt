@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 
-
 class ObserveModeHostApduService : HostApduService() {
     private val TAG = this::class.java.simpleName
 
@@ -17,11 +16,17 @@ class ObserveModeHostApduService : HostApduService() {
     }
 
     override fun processPollingFrames(frames: List<PollingFrame>) {
-        sendBroadcast(Intent(Constants.POLLING_LOOP_EVENT_ACTION).apply {
-            putExtra(Constants.POLLING_LOOP_EVENT_DATA_KEY, PollingFrameNotification(
-                frames.toTypedArray(), SystemClock.elapsedRealtimeNanos())
-            )
-        })
+        sendBroadcast(
+            Intent(Constants.POLLING_LOOP_EVENT_ACTION).apply {
+                putExtra(
+                    Constants.POLLING_LOOP_EVENT_DATA_KEY,
+                    PollingFrameNotification(
+                        frames.toTypedArray(),
+                        SystemClock.elapsedRealtimeNanos(),
+                    ),
+                )
+            }
+        )
     }
 
     override fun onDeactivated(reason: Int) {

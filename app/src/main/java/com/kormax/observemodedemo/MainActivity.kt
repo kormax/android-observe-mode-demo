@@ -69,6 +69,9 @@ class MainActivity : ComponentActivity() {
     private val component = ComponentName(
         "com.kormax.observemodedemo", "com.kormax.observemodedemo.ObserveModeHostApduService"
     )
+    private val sortThreshold = 16
+    private val sampleThreshold = 64
+    private val wrapThreshold = 1_000_000L * 3 // 3 seconds
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,39 +95,79 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(listOf())
             }
 
-            var eventsSinceLastUpdate: Int by remember {
-                mutableStateOf(Int.MAX_VALUE)
-            }
-
             var modeMenuExpanded by remember { mutableStateOf(false) }
             var currentMode: DisplayMode by remember { mutableStateOf(DisplayMode.LOOP) }
 
             SystemBroadcastReceiver(Constants.POLLING_LOOP_EVENT_ACTION) { intent ->
                 val event =
-                    intent?.getParcelableExtra<PollingLoopEvent>(Constants.POLLING_LOOP_EVENT_DATA_KEY)
-                        ?: return@SystemBroadcastReceiver;
-                Log.i(TAG, "Adding new polling frame")
-                loopEvents += event
-                errors = emptyList()
-                // We update loop info only if more than two events were received, or if a field off event occured
-                if (event.type == PollingLoopEvent.OFF || eventsSinceLastUpdate > 2) {
-                    eventsSinceLastUpdate = 0
-                    // Sample 64 last frames.
-                    val rawPollingFrames = loopEvents.takeLast(64).toTypedArray()
+                    intent?.getParcelableExtra<PollingFrameNotification>(
+                        Constants.POLLING_LOOP_EVENT_DATA_KEY
+                    ) ?: return@SystemBroadcastReceiver;
 
-                    // Find a sequence that repeats at least two times back-to-back
-                    val unalignedLoop = largestRepeatingSequence(
-                        rawPollingFrames,
-                        { it1, it2 -> it1.type == it2.type && it1.data.contentEquals(it2.data) },
-                    )
-                    // Attempt to align polling loop sequence based on general assumptions about polling loops
-                    val loop = alignPollingLoop(unalignedLoop)
+                loopEvents += event.frames.map { PollingLoopEvent(it, -1, event.at) }
 
-                    if (loop.isNotEmpty()) {
-                        currentLoop = mapPollingEventsToLoopActivity(loop)
+                val toSort = loopEvents.takeLast(maxOf(sortThreshold, event.frames.size) + 1)
+
+                // HostEmulation manager may deliver "Expeditable" frame types (F, U) in front of
+                // all of the other frames regardless of the original order.
+                // Because of that, we have to re-sort the received loop events back after the fact.
+                // What complicates the task, is that the timestamp value may wrap back
+                // due to specifics of internal timer implementation on the NFC controller
+                // To handle that, we can sample N last frames, find out which ones were not wrapped
+                // by checking that they are not M seconds earlier than the first frame, and split
+                // frames into wrapped and not-wrapped after the fact
+                // Inside of those two groups, we can restore the order by sorting via timestamps.
+                // For the resulting events, re-calculate the delta from the previous event,
+                // and replace last N events with the updated ones
+                if (toSort.isNotEmpty()) {
+                    val first = toSort.first()
+
+                    val (wrapped, notWrapped) = toSort.drop(1).partition {
+                        it.timestamp < first.timestamp - wrapThreshold
                     }
-                } else {
-                    eventsSinceLastUpdate += 1
+
+                    if (wrapped.isNotEmpty()) {
+                        Log.i(
+                            TAG,
+                            "Loop wrapped" +
+                                    " from ${notWrapped.size} ${
+                                        mapPollingLoopEventsToString(
+                                            notWrapped
+                                        )
+                                    }" +
+                                    " to ${wrapped.size} ${mapPollingLoopEventsToString(wrapped)}"
+                        )
+                    }
+
+                    val sorted =
+                        (notWrapped.sortedBy { it.timestamp } + wrapped.sortedBy { it.timestamp })
+
+                    // Update deltas for sorted elements
+                    var previousTimestamp = first.timestamp
+                    val updated = sorted.mapIndexed { index, element ->
+                        val delta = (element.timestamp - previousTimestamp).coerceAtLeast(0)
+                        previousTimestamp = element.timestamp
+                        element.withDelta(delta)
+                    }.toMutableList()
+
+                    loopEvents = loopEvents.dropLast(updated.size) + updated
+                }
+
+                errors = emptyList()
+
+                // Sample 64 last frames.
+                val sample = loopEvents.takeLast(sampleThreshold).toTypedArray()
+
+                // Find a sequence that repeats at least two times back-to-back
+                val unalignedLoop = largestRepeatingSequence(
+                    sample,
+                    { it1, it2 -> it1.type == it2.type && it1.data.contentEquals(it2.data) },
+                )
+                // Attempt to align polling loop sequence based on general assumptions about polling loops
+                val loop = alignPollingLoop(unalignedLoop)
+
+                if (loop.isNotEmpty()) {
+                    currentLoop = mapPollingEventsToLoopActivity(loop)
                 }
             }
 
@@ -231,7 +274,13 @@ class MainActivity : ComponentActivity() {
 
                                     when (currentMode) {
                                         DisplayMode.LOOP -> items(currentLoop.size,
-                                            { "${loopEvents.getOrNull(it)?.at}:${it}" }) { index ->
+                                            {
+                                                "${loopEvents.getOrNull(it)?.at}:${
+                                                    loopEvents.getOrNull(
+                                                        it
+                                                    )?.timestamp
+                                                }:${it}"
+                                            }) { index ->
                                             val loop = currentLoop.getOrNull(index) ?: return@items
                                             PollingLoopItem(
                                                 loop = loop
@@ -239,7 +288,13 @@ class MainActivity : ComponentActivity() {
                                         }
 
                                         DisplayMode.HISTORY -> items(loopEvents.size,
-                                            { "${loopEvents.getOrNull(it)?.at}" }) { index ->
+                                            {
+                                                "${loopEvents.getOrNull(it)?.at}:${
+                                                    loopEvents.getOrNull(
+                                                        it
+                                                    )?.timestamp
+                                                }:${it}"
+                                            }) { index ->
                                             val event = loopEvents.getOrNull(index) ?: return@items
                                             PollingEventItem(
                                                 event = event, display = "timestamp"
@@ -276,7 +331,11 @@ class MainActivity : ComponentActivity() {
                                     val success = nfcAdapter.setObserveModeEnabled(!enabled)
 
                                     snackbarHostState.showSnackbar(
-                                        "Observe mode " + (if (!enabled) "enabled" else "disabled") + " " + (if (success) "successfully" else "unsuccessfully")
+                                        "Observe mode " + (
+                                            if (!enabled) "enabled" else "disabled"
+                                        ) + " " + (
+                                            if (success) "successfully" else "unsuccessfully"
+                                        )
                                     )
                                 }
                             }) {
@@ -344,7 +403,9 @@ class MainActivity : ComponentActivity() {
             }
 
             try {
-                nfcAdapter.setDiscoveryTechnology(this, FLAG_READER_DISABLE, FLAG_LISTEN_KEEP)
+                nfcAdapter.setDiscoveryTechnology(
+                    this, FLAG_READER_DISABLE, FLAG_LISTEN_KEEP
+                )
             } catch (_: Exception) {
                 errors += "Unable to set discovery technology"
             }
@@ -407,7 +468,7 @@ fun PollingEventItem(event: PollingLoopEvent, display: String = "delta") {
 
     val (type, delta, gain) = Triple(
         typeName,
-        when(display) {
+        when (display) {
             "delta" -> mapDeltaToTimeText(event.delta)
             "timestamp" -> event.timestamp.toString()
             else -> ""

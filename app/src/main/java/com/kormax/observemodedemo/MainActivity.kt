@@ -1,6 +1,5 @@
 package com.kormax.observemodedemo
 
-
 import android.content.ComponentName
 import android.content.pm.ActivityInfo
 import android.nfc.NfcAdapter
@@ -61,14 +60,15 @@ import androidx.compose.ui.unit.dp
 import com.kormax.observemodedemo.ui.theme.ObserveModeDemoTheme
 import kotlinx.coroutines.launch
 
-
 class MainActivity : ComponentActivity() {
     private val TAG = this::class.java.simpleName
 
     private var errors: List<String> = listOf()
-    private val component = ComponentName(
-        "com.kormax.observemodedemo", "com.kormax.observemodedemo.ObserveModeHostApduService"
-    )
+    private val component =
+        ComponentName(
+            "com.kormax.observemodedemo",
+            "com.kormax.observemodedemo.ObserveModeHostApduService",
+        )
     private val sortThreshold = 16
     private val sampleThreshold = 64
     private val wrapThreshold = 1_000_000L * 3 // 3 seconds
@@ -77,23 +77,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val appContext = this
 
-
         setContent {
             EnforceScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
             val snackbarHostState = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
 
-            var errors: List<String> by remember {
-                mutableStateOf(this.errors)
-            }
+            var errors: List<String> by remember { mutableStateOf(this.errors) }
 
-            var loopEvents: List<PollingLoopEvent> by remember {
-                mutableStateOf(listOf())
-            }
+            var loopEvents: List<PollingLoopEvent> by remember { mutableStateOf(listOf()) }
 
-            var currentLoop: List<Loop> by remember {
-                mutableStateOf(listOf())
-            }
+            var currentLoop: List<Loop> by remember { mutableStateOf(listOf()) }
 
             var modeMenuExpanded by remember { mutableStateOf(false) }
             var currentMode: DisplayMode by remember { mutableStateOf(DisplayMode.LOOP) }
@@ -102,7 +95,7 @@ class MainActivity : ComponentActivity() {
                 val event =
                     intent?.getParcelableExtra<PollingFrameNotification>(
                         Constants.POLLING_LOOP_EVENT_DATA_KEY
-                    ) ?: return@SystemBroadcastReceiver;
+                    ) ?: return@SystemBroadcastReceiver
 
                 loopEvents += event.frames.map { PollingLoopEvent(it, -1, event.at) }
 
@@ -122,20 +115,19 @@ class MainActivity : ComponentActivity() {
                 if (toSort.isNotEmpty()) {
                     val first = toSort.first()
 
-                    val (wrapped, notWrapped) = toSort.drop(1).partition {
-                        it.timestamp < first.timestamp - wrapThreshold
-                    }
+                    val (wrapped, notWrapped) =
+                        toSort.drop(1).partition { it.timestamp < first.timestamp - wrapThreshold }
 
                     if (wrapped.isNotEmpty()) {
                         Log.i(
                             TAG,
                             "Loop wrapped" +
-                                    " from ${notWrapped.size} ${
+                                " from ${notWrapped.size} ${
                                         mapPollingLoopEventsToString(
                                             notWrapped
                                         )
                                     }" +
-                                    " to ${wrapped.size} ${mapPollingLoopEventsToString(wrapped)}"
+                                " to ${wrapped.size} ${mapPollingLoopEventsToString(wrapped)}",
                         )
                     }
 
@@ -144,11 +136,14 @@ class MainActivity : ComponentActivity() {
 
                     // Update deltas for sorted elements
                     var previousTimestamp = first.timestamp
-                    val updated = sorted.mapIndexed { index, element ->
-                        val delta = (element.timestamp - previousTimestamp).coerceAtLeast(0)
-                        previousTimestamp = element.timestamp
-                        element.withDelta(delta)
-                    }.toMutableList()
+                    val updated =
+                        sorted
+                            .mapIndexed { index, element ->
+                                val delta = (element.timestamp - previousTimestamp).coerceAtLeast(0)
+                                previousTimestamp = element.timestamp
+                                element.withDelta(delta)
+                            }
+                            .toMutableList()
 
                     loopEvents = loopEvents.dropLast(updated.size) + updated
                 }
@@ -159,11 +154,13 @@ class MainActivity : ComponentActivity() {
                 val sample = loopEvents.takeLast(sampleThreshold).toTypedArray()
 
                 // Find a sequence that repeats at least two times back-to-back
-                val unalignedLoop = largestRepeatingSequence(
-                    sample,
-                    { it1, it2 -> it1.type == it2.type && it1.data.contentEquals(it2.data) },
-                )
-                // Attempt to align polling loop sequence based on general assumptions about polling loops
+                val unalignedLoop =
+                    largestRepeatingSequence(
+                        sample,
+                        { it1, it2 -> it1.type == it2.type && it1.data.contentEquals(it2.data) },
+                    )
+                // Attempt to align polling loop sequence based on general assumptions about polling
+                // loops
                 val loop = alignPollingLoop(unalignedLoop)
 
                 if (loop.isNotEmpty()) {
@@ -172,95 +169,93 @@ class MainActivity : ComponentActivity() {
             }
 
             ObserveModeDemoTheme {
-                Scaffold(snackbarHost = {
-                    SnackbarHost(hostState = snackbarHostState)
-                }, topBar = {
-                    TopAppBar(
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            titleContentColor = MaterialTheme.colorScheme.primary,
-                        ),
-                        title = {
-                            Text("NFC Observer")
-                        },
-                        actions = {
-                            Box {
-                                IconButton(onClick = { modeMenuExpanded = true }) {
+                Scaffold(
+                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+                    topBar = {
+                        TopAppBar(
+                            colors =
+                                TopAppBarDefaults.topAppBarColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    titleContentColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            title = { Text("NFC Observer") },
+                            actions = {
+                                Box {
+                                    IconButton(onClick = { modeMenuExpanded = true }) {
+                                        Icon(
+                                            imageVector =
+                                                if (modeMenuExpanded) Icons.Outlined.CheckCircle
+                                                else Icons.Outlined.Info,
+                                            contentDescription = "Toggle detailed info",
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = modeMenuExpanded,
+                                        onDismissRequest = { modeMenuExpanded = false },
+                                    ) {
+                                        DropdownMenuItem(
+                                            { Text("History") },
+                                            onClick = {
+                                                currentMode = DisplayMode.HISTORY
+                                                modeMenuExpanded = false
+                                            },
+                                            trailingIcon = {
+                                                if (currentMode == DisplayMode.HISTORY) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.CheckCircle,
+                                                        contentDescription = "Activated",
+                                                    )
+                                                }
+                                            },
+                                        )
+
+                                        Divider()
+
+                                        DropdownMenuItem(
+                                            { Text("Loop") },
+                                            onClick = {
+                                                currentMode = DisplayMode.LOOP
+                                                modeMenuExpanded = false
+                                            },
+                                            trailingIcon = {
+                                                if (currentMode == DisplayMode.LOOP) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.CheckCircle,
+                                                        contentDescription = "Activated",
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                                IconButton(onClick = { loopEvents = listOf() }) {
                                     Icon(
-                                        imageVector = if (modeMenuExpanded) Icons.Outlined.CheckCircle else Icons.Outlined.Info,
-                                        contentDescription = "Toggle detailed info"
+                                        imageVector = Icons.Filled.Refresh,
+                                        contentDescription = "Clear polling frame history",
                                     )
                                 }
-                                DropdownMenu(expanded = modeMenuExpanded,
-                                    onDismissRequest = { modeMenuExpanded = false }) {
-                                    DropdownMenuItem({ Text("History") }, onClick = {
-                                        currentMode = DisplayMode.HISTORY
-                                        modeMenuExpanded = false
-                                    }, trailingIcon = {
-                                        if (currentMode == DisplayMode.HISTORY) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.CheckCircle,
-                                                contentDescription = "Activated"
-                                            )
-                                        }
-                                    })
-
-                                    Divider()
-
-                                    DropdownMenuItem({ Text("Loop") }, onClick = {
-                                        currentMode = DisplayMode.LOOP
-                                        modeMenuExpanded = false
-                                    }, trailingIcon = {
-                                        if (currentMode == DisplayMode.LOOP) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.CheckCircle,
-                                                contentDescription = "Activated"
-                                            )
-                                        }
-                                    })
-                                }
-                            }
-                            IconButton(onClick = {
-                                loopEvents = listOf()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Refresh,
-                                    contentDescription = "Clear polling frame history"
-                                )
-                            }
-                        },
-                    )
-                }) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(8f)
-                                .fillMaxWidth()
-                        ) {
+                            },
+                        )
+                    },
+                ) { innerPadding ->
+                    Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                        Column(modifier = Modifier.weight(8f).fillMaxWidth()) {
                             if (errors.isNotEmpty()) {
                                 Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(12.dp),
+                                    modifier = Modifier.fillMaxSize().padding(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     for (error in errors) {
                                         Row(
                                             modifier = Modifier.padding(10.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Rounded.Warning,
-                                                contentDescription = "Warning"
+                                                contentDescription = "Warning",
                                             )
-                                            Text(
-                                                text = error
-                                            )
+                                            Text(text = error)
                                         }
                                     }
                                 }
@@ -269,76 +264,83 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize(),
                                     contentPadding = PaddingValues(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    userScrollEnabled = true
+                                    userScrollEnabled = true,
                                 ) {
-
                                     when (currentMode) {
-                                        DisplayMode.LOOP -> items(currentLoop.size,
-                                            {
-                                                "${loopEvents.getOrNull(it)?.at}:${
+                                        DisplayMode.LOOP ->
+                                            items(
+                                                currentLoop.size,
+                                                {
+                                                    "${loopEvents.getOrNull(it)?.at}:${
                                                     loopEvents.getOrNull(
                                                         it
                                                     )?.timestamp
                                                 }:${it}"
-                                            }) { index ->
-                                            val loop = currentLoop.getOrNull(index) ?: return@items
-                                            PollingLoopItem(
-                                                loop = loop
-                                            )
-                                        }
+                                                },
+                                            ) { index ->
+                                                val loop =
+                                                    currentLoop.getOrNull(index) ?: return@items
+                                                PollingLoopItem(loop = loop)
+                                            }
 
-                                        DisplayMode.HISTORY -> items(loopEvents.size,
-                                            {
-                                                "${loopEvents.getOrNull(it)?.at}:${
+                                        DisplayMode.HISTORY ->
+                                            items(
+                                                loopEvents.size,
+                                                {
+                                                    "${loopEvents.getOrNull(it)?.at}:${
                                                     loopEvents.getOrNull(
                                                         it
                                                     )?.timestamp
                                                 }:${it}"
-                                            }) { index ->
-                                            val event = loopEvents.getOrNull(index) ?: return@items
-                                            PollingEventItem(
-                                                event = event, display = "timestamp"
-                                            )
-                                        }
+                                                },
+                                            ) { index ->
+                                                val event =
+                                                    loopEvents.getOrNull(index) ?: return@items
+                                                PollingEventItem(
+                                                    event = event,
+                                                    display = "timestamp",
+                                                )
+                                            }
                                     }
                                 }
                             }
                         }
                         Divider()
                         Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .background(color = Color.Transparent),
+                            modifier =
+                                Modifier.weight(1f)
+                                    .fillMaxWidth()
+                                    .background(color = Color.Transparent),
                             verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Button(onClick = {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        val nfcAdapter: NfcAdapter? =
+                                            try {
+                                                NfcAdapter.getDefaultAdapter(appContext)
+                                            } catch (_: Exception) {
+                                                null
+                                            }
 
-                                scope.launch {
-                                    val nfcAdapter: NfcAdapter? = try {
-                                        NfcAdapter.getDefaultAdapter(appContext)
-                                    } catch (_: Exception) {
-                                        null
-                                    }
+                                        if (nfcAdapter == null) {
+                                            return@launch
+                                        }
 
-                                    if (nfcAdapter == null) {
-                                        return@launch
-                                    }
+                                        val enabled = nfcAdapter.isObserveModeEnabled
 
-                                    val enabled = nfcAdapter.isObserveModeEnabled
+                                        val success = nfcAdapter.setObserveModeEnabled(!enabled)
 
-                                    val success = nfcAdapter.setObserveModeEnabled(!enabled)
-
-                                    snackbarHostState.showSnackbar(
-                                        "Observe mode " + (
-                                            if (!enabled) "enabled" else "disabled"
-                                        ) + " " + (
-                                            if (success) "successfully" else "unsuccessfully"
+                                        snackbarHostState.showSnackbar(
+                                            "Observe mode " +
+                                                (if (!enabled) "enabled" else "disabled") +
+                                                " " +
+                                                (if (success) "successfully" else "unsuccessfully")
                                         )
-                                    )
+                                    }
                                 }
-                            }) {
+                            ) {
                                 Text("Toggle Observe Mode")
                             }
                         }
@@ -348,17 +350,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
     override fun onResume() {
         super.onResume()
 
         errors = mutableListOf()
 
-        val nfcAdapter: NfcAdapter? = try {
-            NfcAdapter.getDefaultAdapter(this)
-        } catch (_: Exception) {
-            null
-        }
+        val nfcAdapter: NfcAdapter? =
+            try {
+                NfcAdapter.getDefaultAdapter(this)
+            } catch (_: Exception) {
+                null
+            }
 
         if (nfcAdapter == null) {
             errors += "Unable to get NfcAdapter"
@@ -368,12 +370,13 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val cardEmulation = try {
-            CardEmulation.getInstance(nfcAdapter)
-        } catch (_: Exception) {
-            Log.e(TAG, "CardEmulation is unavailable")
-            null
-        }
+        val cardEmulation =
+            try {
+                CardEmulation.getInstance(nfcAdapter)
+            } catch (_: Exception) {
+                Log.e(TAG, "CardEmulation is unavailable")
+                null
+            }
 
         if (cardEmulation == null) {
             errors += "Unable to get CardEmulation"
@@ -389,10 +392,11 @@ class MainActivity : ComponentActivity() {
                 errors += "Unable to remove AID for service"
             }
 
-            if (!cardEmulation.registerAidsForService(
-                    component, "payment", listOf(
-                        "A0C0FFEEC0FFEE",
-                    )
+            if (
+                !cardEmulation.registerAidsForService(
+                    component,
+                    "payment",
+                    listOf("A0C0FFEEC0FFEE"),
                 )
             ) {
                 errors += "Unable to register AID for service"
@@ -403,9 +407,7 @@ class MainActivity : ComponentActivity() {
             }
 
             try {
-                nfcAdapter.setDiscoveryTechnology(
-                    this, FLAG_READER_DISABLE, FLAG_LISTEN_KEEP
-                )
+                nfcAdapter.setDiscoveryTechnology(this, FLAG_READER_DISABLE, FLAG_LISTEN_KEEP)
             } catch (_: Exception) {
                 errors += "Unable to set discovery technology"
             }
@@ -419,30 +421,25 @@ class MainActivity : ComponentActivity() {
 fun PollingLoopItem(loop: Loop) {
     return Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = mapDeltaToTimeText(loop.startDelta),
-            //fontSize = 12.sp
+            text = mapDeltaToTimeText(loop.startDelta)
+            // fontSize = 12.sp
         )
 
         ElevatedCard(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ), elevation = CardDefaults.cardElevation(
-                defaultElevation = 1.dp
-            ), shape = RoundedCornerShape(18.dp), modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
+            colors =
+                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-
                 for (event in loop.events) {
                     // Decide if we want to display delta values between frame blocks or in them
                     /*Text(
@@ -452,11 +449,10 @@ fun PollingLoopItem(loop: Loop) {
                     PollingEventItem(event = event, display = "delta")
                 }
                 Text(
-                    text = mapDeltaToTimeText(loop.endDelta),
-                    //fontSize = 12.sp
+                    text = mapDeltaToTimeText(loop.endDelta)
+                    // fontSize = 12.sp
                 )
             }
-
         }
     }
 }
@@ -466,79 +462,66 @@ fun PollingEventItem(event: PollingLoopEvent, display: String = "delta") {
     val (typeName, color) = mapPollingFrameTypeToNameAndColor(event.type)
     val dataGainDisplayed = typeName !in Constants.POLLING_FRAME_TYPES_WITHOUT_GAIN_AND_DATA
 
-    val (type, delta, gain) = Triple(
-        typeName,
-        when (display) {
-            "delta" -> mapDeltaToTimeText(event.delta)
-            "timestamp" -> event.timestamp.toString()
-            else -> ""
-        },
-        mapVendorSpecificGainToPowerPercentage(
-            event.vendorSpecificGain
+    val (type, delta, gain) =
+        Triple(
+            typeName,
+            when (display) {
+                "delta" -> mapDeltaToTimeText(event.delta)
+                "timestamp" -> event.timestamp.toString()
+                else -> ""
+            },
+            mapVendorSpecificGainToPowerPercentage(event.vendorSpecificGain),
         )
-    )
 
     ElevatedCard(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                .copy(alpha = 0.8f).compositeOver(color.copy(alpha = 0.2f)),
-        ), elevation = CardDefaults.cardElevation(
-            defaultElevation = 8.dp
-        ), modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .border(
-                width = 1.dp, color = color.copy(alpha = 0.8f), shape = MaterialTheme.shapes.medium
-            )
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    MaterialTheme.colorScheme.surfaceVariant
+                        .copy(alpha = 0.8f)
+                        .compositeOver(color.copy(alpha = 0.2f))
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        modifier =
+            Modifier.fillMaxWidth()
+                .wrapContentHeight()
+                .border(
+                    width = 1.dp,
+                    color = color.copy(alpha = 0.8f),
+                    shape = MaterialTheme.shapes.medium,
+                ),
     ) {
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .width(IntrinsicSize.Max)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().width(IntrinsicSize.Max)) {
             Row(
-                modifier = Modifier
-                    .padding(
-                        bottom = if (dataGainDisplayed) 4.dp else 10.dp,
-                        top = 10.dp,
-                        start = 10.dp,
-                        end = 10.dp
-                    )
-                    .fillMaxWidth(),
+                modifier =
+                    Modifier.padding(
+                            bottom = if (dataGainDisplayed) 4.dp else 10.dp,
+                            top = 10.dp,
+                            start = 10.dp,
+                            end = 10.dp,
+                        )
+                        .fillMaxWidth()
             ) {
-                Text(
-                    text = type,
-                    modifier = Modifier.width(32.dp)
-                )
+                Text(text = type, modifier = Modifier.width(32.dp))
 
-                Text(
-                    text = event.name
-                )
+                Text(text = event.name)
                 if (display != "") {
                     Text(
                         textAlign = TextAlign.End,
-                        text = delta, modifier = Modifier.fillMaxWidth()
+                        text = delta,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
             if (dataGainDisplayed) {
-                Divider(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = color.copy(alpha = 0.6f),
-                )
+                Divider(modifier = Modifier.fillMaxWidth(), color = color.copy(alpha = 0.6f))
                 Row(
-                    modifier = Modifier.padding(
-                        top = 4.dp, bottom = 10.dp, start = 10.dp, end = 10.dp
-                    ), horizontalArrangement = Arrangement.SpaceBetween
+                    modifier =
+                        Modifier.padding(top = 4.dp, bottom = 10.dp, start = 10.dp, end = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(
-                        modifier = Modifier.weight(1f),
-                        text = event.data.toHexString(),
-                    )
-                    Text(
-                        text = gain,
-                    )
+                    Text(modifier = Modifier.weight(1f), text = event.data.toHexString())
+                    Text(text = gain)
                 }
             }
         }

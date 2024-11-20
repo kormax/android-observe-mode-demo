@@ -44,6 +44,12 @@ data class Loop(
     val timestamp: Instant = now()
 )
 
+@Parcelize
+class PollingFrameNotification(
+    val frames: Array<PollingFrame>,
+    val at: Long
+) : Parcelable
+
 
 @Parcelize
 class PollingLoopEvent(
@@ -76,6 +82,17 @@ class PollingLoopEvent(
         frame.timestamp - delta,
         at,
     )
+
+    fun withDelta(delta: Long): PollingLoopEvent {
+        return PollingLoopEvent(
+            timestamp,
+            type,
+            data,
+            vendorSpecificGain,
+            delta,
+            at,
+        )
+    }
 
     companion object {
         val A = PollingFrame.POLLING_LOOP_TYPE_A
@@ -355,6 +372,14 @@ fun mapPollingFrameTypeToName(type: Int) = mapPollingFrameTypeToNameAndColor(typ
 fun mapPollingLoopToString(frames: Array<PollingFrame>) =
     frames.map { mapPollingFrameTypeToName(it.type) }.joinToString("") { it }
 
+fun mapPollingLoopEventToString(event: PollingLoopEvent): String = "${
+    mapPollingFrameTypeToName(event.type)
+}(${event.data.toHexString()})[${event.timestamp}]"
+
+
+fun mapPollingLoopEventsToString(events: Collection<PollingLoopEvent>): String =
+    "${events.map { mapPollingLoopEventToString(it) }}"
+
 
 inline fun <reified T> smallestRepeatingSequence(
     arr: Array<T>, noinline comparator: (T, T) -> Boolean
@@ -408,9 +433,9 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
 
         // To provide stability in continuous loops
         // assign score based on length
-        score += events.get(0, rotation).data.size * 0.001
+        score += events.get(0, rotation).data.size * 0.000001
         // first byte
-        score += events.get(0, rotation).data.getOrElse(0, {"00".hexToByte()}) * 0.00001
+        score += events.get(0, rotation).data.getOrElse(0, { "00".hexToByte() }) * 0.000000001
 
         for (index in events.indices) {
             val currentTech =
@@ -418,6 +443,9 @@ fun alignPollingLoop(events: Array<PollingLoopEvent>): Array<PollingLoopEvent> {
             if (previousTech < currentTech) {
                 score += 2
                 previousTech = currentTech
+            } else if (previousTech == currentTech) {
+                // Prefer if same events come back-to-back
+                score += 0.001
             }
         }
 

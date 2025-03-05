@@ -16,6 +16,7 @@ class ObserveModeHostApduService : HostApduService() {
     }
 
     override fun processPollingFrames(frames: List<PollingFrame>) {
+        Log.i(TAG, "processPollingFrames received ${frames.size} frames")
         sendBroadcast(
             Intent(Constants.POLLING_LOOP_EVENT_ACTION).apply {
                 putExtra(

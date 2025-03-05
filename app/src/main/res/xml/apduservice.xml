@@ -2,6 +2,7 @@
     android:description="@string/servicedesc"
     android:requireDeviceUnlock="false"
     android:requireDeviceScreenOn="false"
+    android:shouldDefaultToObserveMode="true"
     >
     <aid-group android:description="@string/aiddescription" android:category="payment">
         <aid-filter android:name="FFFFFFFFFF"/>

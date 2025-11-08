@@ -1,6 +1,8 @@
 package com.kormax.observemodedemo
 
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.nfc.NfcAdapter
 import android.nfc.NfcAdapter.FLAG_LISTEN_KEEP
@@ -28,7 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
@@ -46,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +62,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.kormax.observemodedemo.ui.theme.ObserveModeDemoTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
     private val TAG = this::class.java.simpleName
@@ -72,6 +83,12 @@ class MainActivity : ComponentActivity() {
     private val sortThreshold = 16
     private val sampleThreshold = 64
     private val wrapThreshold = 1_000_000L * 3 // 3 seconds
+    private val exportFileTimestampFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+
+    private enum class ExportShareMode {
+        TEXT,
+        FILE,
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,8 +105,141 @@ class MainActivity : ComponentActivity() {
 
             var currentLoop: List<Loop> by remember { mutableStateOf(listOf()) }
 
+            var exportMenuExpanded by remember { mutableStateOf(false) }
             var modeMenuExpanded by remember { mutableStateOf(false) }
             var currentMode: DisplayMode by remember { mutableStateOf(DisplayMode.LOOP) }
+
+            LaunchedEffect(loopEvents.isEmpty()) {
+                if (loopEvents.isEmpty()) {
+                    exportMenuExpanded = false
+                }
+            }
+
+            fun sharePollingData(mode: ExportShareMode) {
+                exportMenuExpanded = false
+                val eventsSnapshot = loopEvents.toList()
+                if (eventsSnapshot.isEmpty()) {
+                    return
+                }
+                scope.launch {
+                    val payloadResult =
+                        withContext(Dispatchers.Default) {
+                            runCatching {
+                                buildPollingExportPayload(
+                                    appContext,
+                                    eventsSnapshot,
+                                )
+                            }
+                        }
+                    val payload = payloadResult.getOrNull()
+                    if (payload == null) {
+                        Log.e(
+                            TAG,
+                            "Unable to export polling data",
+                            payloadResult.exceptionOrNull(),
+                        )
+                        snackbarHostState.showSnackbar(
+                            appContext.getString(R.string.export_share_failure)
+                        )
+                        return@launch
+                    }
+
+                    val shareTitle = appContext.getString(R.string.export_share_title)
+
+                    when (mode) {
+                        ExportShareMode.TEXT -> {
+                            val chooser =
+                                Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/json"
+                                        putExtra(Intent.EXTRA_TEXT, payload)
+                                        putExtra(Intent.EXTRA_SUBJECT, shareTitle)
+                                        putExtra(Intent.EXTRA_TITLE, shareTitle)
+                                    },
+                                    shareTitle,
+                                )
+
+                            try {
+                                appContext.startActivity(chooser)
+                            } catch (error: ActivityNotFoundException) {
+                                Log.w(
+                                    TAG,
+                                    "No handler available for export",
+                                    error,
+                                )
+                                snackbarHostState.showSnackbar(
+                                    appContext.getString(R.string.export_share_unavailable)
+                                )
+                            }
+                        }
+
+                        ExportShareMode.FILE -> {
+                            val fileUriResult =
+                                withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        val exportsDir =
+                                            File(appContext.cacheDir, "exports").apply {
+                                                if (!exists()) {
+                                                    mkdirs()
+                                                }
+                                            }
+                                        val timestamp =
+                                            LocalDateTime.now()
+                                                .format(exportFileTimestampFormatter)
+                                        val exportFile =
+                                            File(
+                                                exportsDir,
+                                                "observe-mode-export-$timestamp.json",
+                                            )
+                                        exportFile.writeText(payload)
+                                        FileProvider.getUriForFile(
+                                            appContext,
+                                            "${appContext.packageName}.fileprovider",
+                                            exportFile,
+                                        )
+                                    }
+                                }
+                            val fileUri = fileUriResult.getOrNull()
+                            if (fileUri == null) {
+                                Log.e(
+                                    TAG,
+                                    "Unable to write export file",
+                                    fileUriResult.exceptionOrNull(),
+                                )
+                                snackbarHostState.showSnackbar(
+                                    appContext.getString(R.string.export_share_failure)
+                                )
+                                return@launch
+                            }
+
+                            val chooser =
+                                Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/json"
+                                        putExtra(Intent.EXTRA_STREAM, fileUri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        putExtra(Intent.EXTRA_SUBJECT, shareTitle)
+                                        putExtra(Intent.EXTRA_TITLE, shareTitle)
+                                    },
+                                    shareTitle,
+                                )
+
+                            try {
+                                appContext.startActivity(chooser)
+                            } catch (error: ActivityNotFoundException) {
+                                Log.w(
+                                    TAG,
+                                    "No handler available for export file",
+                                    error,
+                                )
+                                snackbarHostState.showSnackbar(
+                                    appContext.getString(R.string.export_share_unavailable)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             SystemBroadcastReceiver(Constants.POLLING_LOOP_EVENT_ACTION) { intent ->
                 val event =
@@ -180,6 +330,57 @@ class MainActivity : ComponentActivity() {
                                 ),
                             title = { Text("NFC Observer") },
                             actions = {
+                                Box {
+                                    IconButton(
+                                        enabled = loopEvents.isNotEmpty(),
+                                        onClick = { exportMenuExpanded = true },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Share,
+                                            contentDescription =
+                                                appContext.getString(
+                                                    R.string.export_share_content_description
+                                                ),
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = exportMenuExpanded && loopEvents.isNotEmpty(),
+                                        onDismissRequest = { exportMenuExpanded = false },
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    appContext.getString(
+                                                        R.string.export_share_text_option
+                                                    )
+                                                )
+                                            },
+                                            onClick = { sharePollingData(ExportShareMode.TEXT) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Share,
+                                                    contentDescription = null,
+                                                )
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    appContext.getString(
+                                                        R.string.export_share_file_option
+                                                    )
+                                                )
+                                            },
+                                            onClick = { sharePollingData(ExportShareMode.FILE) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Email,
+                                                    contentDescription = null,
+                                                )
+                                            },
+                                        )
+                                    }
+                                }
                                 Box {
                                     IconButton(onClick = { modeMenuExpanded = true }) {
                                         Icon(

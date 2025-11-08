@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.nfc.cardemulation.PollingFrame
+import android.os.Build
 import android.os.Parcelable
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
@@ -15,11 +17,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.pm.PackageInfoCompat
 import java.time.Instant
 import java.time.Instant.now
 import kotlin.experimental.and
 import kotlin.math.ceil
 import kotlinx.parcelize.Parcelize
+import org.json.JSONArray
+import org.json.JSONObject
 
 class Constants {
     companion object {
@@ -546,4 +551,64 @@ fun mapPollingEventsToLoopActivity(events: Array<PollingLoopEvent>): List<Loop> 
         result += Loop(startDelta, -1, elements.map { it }.toTypedArray(), now())
     }
     return result
+}
+
+fun buildPollingExportPayload(
+    context: Context,
+    frames: List<PollingLoopEvent>,
+    exportInstant: Instant = Instant.now(),
+): String {
+    val packageManager = context.packageManager
+    val packageInfo =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(0),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(context.packageName, 0)
+        }
+
+    val framesJson = JSONArray()
+    frames.forEach { event ->
+        val frameJson =
+            JSONObject().apply {
+                put("timestamp", event.timestamp)
+                put("data", event.data.toHexString())
+                put("vendorSpecificGain", event.vendorSpecificGain)
+                event.name.takeIf { it.isNotBlank() }?.let { put("name", it) }
+            }
+        framesJson.put(frameJson)
+    }
+
+    val deviceInfo =
+        JSONObject().apply {
+            put("manufacturer", Build.MANUFACTURER)
+            put("model", Build.MODEL)
+            put("device", Build.DEVICE)
+            put("hardware", Build.HARDWARE)
+            put("brand", Build.BRAND)
+            put("product", Build.PRODUCT)
+        }
+
+    val softwareInfo =
+        JSONObject().apply {
+            put("packageName", context.packageName)
+            put("versionName", packageInfo.versionName ?: "")
+            put("versionCode", PackageInfoCompat.getLongVersionCode(packageInfo))
+            put("sdkInt", Build.VERSION.SDK_INT)
+            put("release", Build.VERSION.RELEASE)
+            put("codename", Build.VERSION.CODENAME)
+        }
+
+    val payload =
+        JSONObject().apply {
+            put("exportTime", exportInstant.toString())
+            put("deviceInfo", deviceInfo)
+            put("softwareInfo", softwareInfo)
+            put("frames", framesJson)
+        }
+
+    return payload.toString(2)
 }

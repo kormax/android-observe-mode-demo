@@ -2,4 +2,10 @@
     <string name="app_name">Observe Mode Demo</string>
     <string name="aiddescription">AID description</string>
     <string name="servicedesc">Service description</string>
+    <string name="export_share_title">Observe Mode captured frames</string>
+    <string name="export_share_content_description">Export captured frames as JSON</string>
+    <string name="export_share_failure">Unable to prepare export</string>
+    <string name="export_share_unavailable">No app available to share export</string>
+    <string name="export_share_text_option">Share as JSON text</string>
+    <string name="export_share_file_option">Share as JSON file</string>
 </resources>

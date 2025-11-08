@@ -65,8 +65,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.kormax.observemodedemo.ui.theme.ObserveModeDemoTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.lifecycleScope
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -553,12 +555,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        lifecycleScope.launch {
+            initializeNfc()
+        }
+    }
 
+    private suspend fun initializeNfc() {
         errors = mutableListOf()
 
         val nfcAdapter: NfcAdapter? =
             try {
-                NfcAdapter.getDefaultAdapter(this)
+                NfcAdapter.getDefaultAdapter(this@MainActivity)
             } catch (_: Exception) {
                 null
             }
@@ -586,8 +593,18 @@ class MainActivity : ComponentActivity() {
 
         try {
             val observeModeEnabled = nfcAdapter.isObserveModeEnabled
-            if (!observeModeEnabled && !nfcAdapter.setObserveModeEnabled(true)) {
-                errors += "Unable to enable Observe Mode"
+            if (!observeModeEnabled) {
+                var observeModeSetSuccess = false
+                repeat(5) {
+                    if (nfcAdapter.setObserveModeEnabled(true)) {
+                        observeModeSetSuccess = true
+                        return@repeat
+                    }
+                    delay(100)
+                }
+                if (!observeModeSetSuccess) {
+                    errors += "Unable to enable Observe Mode"
+                }
             }
             if (!cardEmulation.removeAidsForService(component, "payment")) {
                 errors += "Unable to remove AID for service"
@@ -603,12 +620,12 @@ class MainActivity : ComponentActivity() {
                 errors += "Unable to register AID for service"
             }
 
-            if (!cardEmulation.setPreferredService(this, component)) {
+            if (!cardEmulation.setPreferredService(this@MainActivity, component)) {
                 errors += "Unable to set preferred service"
             }
 
             try {
-                nfcAdapter.setDiscoveryTechnology(this, FLAG_READER_DISABLE, FLAG_LISTEN_KEEP)
+                nfcAdapter.setDiscoveryTechnology(this@MainActivity, FLAG_READER_DISABLE, FLAG_LISTEN_KEEP)
             } catch (_: Exception) {
                 errors += "Unable to set discovery technology"
             }

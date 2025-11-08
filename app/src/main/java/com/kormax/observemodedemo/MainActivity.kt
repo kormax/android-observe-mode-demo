@@ -46,11 +46,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +79,7 @@ class MainActivity : ComponentActivity() {
     private val TAG = this::class.java.simpleName
 
     private var errors: List<String> = listOf()
+    private var observeModeEnabledState = mutableStateOf(false)
     private val component =
         ComponentName(
             "com.kormax.observemodedemo",
@@ -101,11 +104,19 @@ class MainActivity : ComponentActivity() {
             val snackbarHostState = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
 
-            var errors: List<String> by remember { mutableStateOf(this.errors) }
+            var errors: List<String> by remember { mutableStateOf(this@MainActivity.errors) }
 
             var loopEvents: List<PollingLoopEvent> by remember { mutableStateOf(listOf()) }
 
             var currentLoop: List<Loop> by remember { mutableStateOf(listOf()) }
+
+            var observeModeEnabled by remember { mutableStateOf(false) }
+
+            // Derive compose state from activity's mutable state - ensures recomposition
+            // whenever the activity state changes (from initializeNfc or button toggle)
+            val observeModeEnabledDerived by remember {
+                derivedStateOf { this@MainActivity.observeModeEnabledState.value }
+            }
 
             var exportMenuExpanded by remember { mutableStateOf(false) }
             var modeMenuExpanded by remember { mutableStateOf(false) }
@@ -509,6 +520,21 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         Divider()
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ) {
+                            Text(
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                text = if (observeModeEnabledDerived)
+                                    "Observe Mode: ON"
+                                else
+                                    "Observe Mode: OFF",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
                         Column(
                             modifier =
                                 Modifier.weight(1f)
@@ -534,6 +560,11 @@ class MainActivity : ComponentActivity() {
                                         val enabled = nfcAdapter.isObserveModeEnabled
 
                                         val success = nfcAdapter.setObserveModeEnabled(!enabled)
+
+                                        if (success) {
+                                            observeModeEnabled = !enabled
+                                            this@MainActivity.observeModeEnabledState.value = !enabled
+                                        }
 
                                         snackbarHostState.showSnackbar(
                                             "Observe mode " +
@@ -591,11 +622,16 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        if (!cardEmulation.setPreferredService(this@MainActivity, component)) {
+            errors += "Unable to set preferred service"
+        }
+
         try {
-            val observeModeEnabled = nfcAdapter.isObserveModeEnabled
-            if (!observeModeEnabled) {
-                var observeModeSetSuccess = false
-                repeat(5) {
+            var observeModeSetSuccess = false
+            val observeModeEnabledBefore = nfcAdapter.isObserveModeEnabled
+            if (!observeModeEnabledBefore) {
+                // Attempt up to 1 second after resume
+                repeat(10) {
                     if (nfcAdapter.setObserveModeEnabled(true)) {
                         observeModeSetSuccess = true
                         return@repeat
@@ -606,6 +642,9 @@ class MainActivity : ComponentActivity() {
                     errors += "Unable to enable Observe Mode"
                 }
             }
+
+            this@MainActivity.observeModeEnabledState.value = observeModeSetSuccess || nfcAdapter.isObserveModeEnabled
+
             if (!cardEmulation.removeAidsForService(component, "payment")) {
                 errors += "Unable to remove AID for service"
             }
@@ -618,10 +657,6 @@ class MainActivity : ComponentActivity() {
                 )
             ) {
                 errors += "Unable to register AID for service"
-            }
-
-            if (!cardEmulation.setPreferredService(this@MainActivity, component)) {
-                errors += "Unable to set preferred service"
             }
 
             try {

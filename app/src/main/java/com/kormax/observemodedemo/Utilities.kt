@@ -239,7 +239,6 @@ fun parseFeliCaSystemCode(systemCode: String): String {
     }
 }
 
-
 fun parseECPTransitTCI(tci: String): String {
     if (tci.length < 6) return "UNKNOWN"
     return when (tci) {
@@ -257,7 +256,6 @@ fun parseECPTransitTCI(tci: String): String {
         else -> "UNKNOWN"
     }
 }
-
 
 fun parseECPAccessHomeTCI(tci: String): String {
     if (tci.length < 6) return "UNKNOWN"
@@ -278,17 +276,20 @@ fun parseECPAccessAutomotiveTCI(tci: String): String {
         "01004" -> "KIA" // last nibble: 1-6
         "01005" -> "GENESIS" // last nibble: 1-7
         "01009" -> "LOTUS" // last nibble: 1-6
-        "0100a", "0100b" -> "NIO" // last nibble: 1-6
+        "0100a",
+        "0100b" -> "NIO" // last nibble: 1-6
         "0100e" -> "SKODA"
         "01011" -> "AUDI" // last nibble: 1-6
-        "01013", "0102a" -> "POLESTAR" // last nibble: 1-6
+        "01013",
+        "0102a" -> "POLESTAR" // last nibble: 1-6
         "0101a" -> "LYNKCO" // last nibble: 1-6
         "0101b" -> "ZEEKR" // last nibble: 1-6
         "0101e" -> "SMART" // last nibble: 1-6
         "01020" -> "MERCEDES" // last nibble: 1-6
         "01022" -> "RAM" // last nibble: 1-6
         "01024" -> "DENZA" // last nibble: 1-6
-        "01029", "01040" -> "VOLVO" // last nibble: 1-6
+        "01029",
+        "01040" -> "VOLVO" // last nibble: 1-6
         "0102b" -> "YW" // last nibble: 1-6
         "0102d" -> "FCB" // last nibble: 1-6
         "01030" -> "HYUNDAI" // last nibble: 1-6
@@ -296,7 +297,8 @@ fun parseECPAccessAutomotiveTCI(tci: String): String {
         "01033" -> "JETOUR" // last nibble: 1-6
         "01038" -> "XPENG" // last nibble: 1-6
         "01046" -> "SAICAUDI" // last nibble: 1-6
-        "01055", "01056" -> "VOYAH" // last nibble: 1-6
+        "01055",
+        "01056" -> "VOYAH" // last nibble: 1-6
         "01070" -> "BYD" // last nibble: 1-6
         else -> "UNKNOWN"
     }
@@ -306,12 +308,12 @@ fun parseECPAccessVenueTCI(tci: String): String {
     if (tci.length < 6) return "UNKNOWN"
 
     return when (tci) {
-        "02ffff", "020000" -> "DEMO"
+        "02ffff",
+        "020000" -> "DEMO"
         "820000" -> "SEOS"
         else -> "UNKNOWN"
     }
 }
-
 
 fun parseECPAccessData(data: String): String {
     if (data.length < 2) return "UNKNOWN"
@@ -319,10 +321,15 @@ fun parseECPAccessData(data: String): String {
     val subtype = data.take(2)
     return when (subtype) {
         "00" -> "UNIVERSITY"
-        "01", "08", "09", "0a", "0b" -> when {
-            data.length < 8 -> "AUTOMOTIVE"
-            else -> "AUTOMOTIVE_${parseECPAccessAutomotiveTCI(data.substring(2, 8))}"
-        }
+        "01",
+        "08",
+        "09",
+        "0a",
+        "0b" ->
+            when {
+                data.length < 8 -> "AUTOMOTIVE"
+                else -> "AUTOMOTIVE_${parseECPAccessAutomotiveTCI(data.substring(2, 8))}"
+            }
         "02" if data.length >= 8 -> "VENUE_${parseECPAccessVenueTCI(data.substring(2, 8))}"
         "02" -> "VENUE"
         "04" if data.length >= 8 -> "HOME_${parseECPAccessHomeTCI(data.substring(2, 8))}"
@@ -658,8 +665,7 @@ fun buildPollingExportPayload(
                 PackageManager.PackageInfoFlags.of(0),
             )
         } else {
-            @Suppress("DEPRECATION")
-            packageManager.getPackageInfo(context.packageName, 0)
+            @Suppress("DEPRECATION") packageManager.getPackageInfo(context.packageName, 0)
         }
 
     val framesJson = JSONArray()

@@ -65,15 +65,15 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import com.kormax.observemodedemo.ui.theme.ObserveModeDemoTheme
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.lifecycle.lifecycleScope
-import java.io.File
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
     private val TAG = this::class.java.simpleName
@@ -137,20 +137,11 @@ class MainActivity : ComponentActivity() {
                 scope.launch {
                     val payloadResult =
                         withContext(Dispatchers.Default) {
-                            runCatching {
-                                buildPollingExportPayload(
-                                    appContext,
-                                    eventsSnapshot,
-                                )
-                            }
+                            runCatching { buildPollingExportPayload(appContext, eventsSnapshot) }
                         }
                     val payload = payloadResult.getOrNull()
                     if (payload == null) {
-                        Log.e(
-                            TAG,
-                            "Unable to export polling data",
-                            payloadResult.exceptionOrNull(),
-                        )
+                        Log.e(TAG, "Unable to export polling data", payloadResult.exceptionOrNull())
                         snackbarHostState.showSnackbar(
                             appContext.getString(R.string.export_share_failure)
                         )
@@ -175,11 +166,7 @@ class MainActivity : ComponentActivity() {
                             try {
                                 appContext.startActivity(chooser)
                             } catch (error: ActivityNotFoundException) {
-                                Log.w(
-                                    TAG,
-                                    "No handler available for export",
-                                    error,
-                                )
+                                Log.w(TAG, "No handler available for export", error)
                                 snackbarHostState.showSnackbar(
                                     appContext.getString(R.string.export_share_unavailable)
                                 )
@@ -197,13 +184,9 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         val timestamp =
-                                            LocalDateTime.now()
-                                                .format(exportFileTimestampFormatter)
+                                            LocalDateTime.now().format(exportFileTimestampFormatter)
                                         val exportFile =
-                                            File(
-                                                exportsDir,
-                                                "observe-mode-export-$timestamp.json",
-                                            )
+                                            File(exportsDir, "observe-mode-export-$timestamp.json")
                                         exportFile.writeText(payload)
                                         FileProvider.getUriForFile(
                                             appContext,
@@ -240,11 +223,7 @@ class MainActivity : ComponentActivity() {
                             try {
                                 appContext.startActivity(chooser)
                             } catch (error: ActivityNotFoundException) {
-                                Log.w(
-                                    TAG,
-                                    "No handler available for export file",
-                                    error,
-                                )
+                                Log.w(TAG, "No handler available for export file", error)
                                 snackbarHostState.showSnackbar(
                                     appContext.getString(R.string.export_share_unavailable)
                                 )
@@ -522,15 +501,14 @@ class MainActivity : ComponentActivity() {
                         Divider()
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                         ) {
                             Text(
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center,
-                                text = if (observeModeEnabledDerived)
-                                    "Observe Mode: ON"
-                                else
-                                    "Observe Mode: OFF",
+                                text =
+                                    if (observeModeEnabledDerived) "Observe Mode: ON"
+                                    else "Observe Mode: OFF",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
@@ -563,7 +541,8 @@ class MainActivity : ComponentActivity() {
 
                                         if (success) {
                                             observeModeEnabled = !enabled
-                                            this@MainActivity.observeModeEnabledState.value = !enabled
+                                            this@MainActivity.observeModeEnabledState.value =
+                                                !enabled
                                         }
 
                                         snackbarHostState.showSnackbar(
@@ -586,9 +565,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        lifecycleScope.launch {
-            initializeNfc()
-        }
+        lifecycleScope.launch { initializeNfc() }
     }
 
     private suspend fun initializeNfc() {
@@ -643,7 +620,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            this@MainActivity.observeModeEnabledState.value = observeModeSetSuccess || nfcAdapter.isObserveModeEnabled
+            this@MainActivity.observeModeEnabledState.value =
+                observeModeSetSuccess || nfcAdapter.isObserveModeEnabled
 
             if (!cardEmulation.removeAidsForService(component, "payment")) {
                 errors += "Unable to remove AID for service"
@@ -660,7 +638,11 @@ class MainActivity : ComponentActivity() {
             }
 
             try {
-                nfcAdapter.setDiscoveryTechnology(this@MainActivity, FLAG_READER_DISABLE, FLAG_LISTEN_KEEP)
+                nfcAdapter.setDiscoveryTechnology(
+                    this@MainActivity,
+                    FLAG_READER_DISABLE,
+                    FLAG_LISTEN_KEEP,
+                )
             } catch (_: Exception) {
                 errors += "Unable to set discovery technology"
             }

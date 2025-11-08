@@ -1,4 +1,4 @@
-# Android 15 Observe Mode Demo
+# Android Observe Mode Demo
 
 <p float="left">
   <img src="./assets/SCREENSHOT.HISTORY.webp" alt="![Screenshot with history of polling events displayed]" width=200px>
@@ -9,10 +9,10 @@
 
 # Overview
 
-This project provides a demonstration of [Observe Mode](https://developer.android.com/reference/android/nfc/NfcAdapter#isObserveModeSupported()) feature introduced in Android 15, which enables NFC hardware to listen to reader polling without responding to it.
+This project demonstrates the [Observe Mode](https://developer.android.com/develop/connectivity/nfc/hce#observe-mode) feature introduced in Android 15, which lets NFC hardware to listen to reader polling without responding to it, so apps can anticipate the reader and prepare to interact with it before commencing the transaction.
 
-The application allows a user to look at the polling frames sent by the reader, with the following data:
-* Type (A, B, F, U*, ON, OFF);
+The application lets you inspect the polling frames sent by the reader with the following details:
+* Type of the frame (A, B, F, U*, ON, OFF);
 * Delta, the amount of time since a previous polling loop frame;
 * Adjusted gain value;
 * Payload data.
@@ -25,58 +25,60 @@ A user can choose between two display modes:
 
 # Requirements
 
-* Android Studio Preview;
-* Android VanillaIceCream SDK;
-* A compatible Google Pixel Phone, with Android 15 Beta 1.1 or newer installed;
-* Any other mobile device or an NFC reader, in order to look at the polling frame data.
+* Android Studio;
+* A compatible device with Android 15 Beta 1.1 or newer installed;
+* Another mobile device or NFC reader to act as the polling source.
 
 
-# Known issues
+# Supported devices
 
-* ~~When re-installing the app, Observe Mode might stop working until it is manually turned on and off a couple of times (this could be an issue caused by this app)~~ (Fixed in Beta 2);
-* ~~When launching the app initially, there could be a significant delay before the system starts notifying the app about the incoming polling loop events~~ (Fixed in Beta 2);
-* [Depending on NFC type and data payload, reported polling frame data may be missing, mutated, or have a mislabeled type](https://issuetracker.google.com/issues/334298675):
-    - Type A:
-        - ~~Custom frame data is always missing for long frames with or without CRC~~ (Fixed in Beta 2); 
-        - Common seven-bit short frames like WUPA or REQA return `52` + some extra bytes of data containing previous polling frames as data instead of just `52` or `26`;
-        - ~~Custom seven-bit short frames return no data~~ (Fixed in Beta 2).
-    - Type B:
-        - Proper frames with CRC are detected as type B frames with proper data.
-        - Frames with improper CRC are detected as type U and have an extra byte containing length inside of data part.
-    - Type F:
-        - No issues as of Beta 2.
-    - Type V:
-        - Type V frames are unsupported by this API, so they are missing, which is the intended behavior.
+| Device series | NFC chip      | Observe Mode support                    | Notes                                                     |
+|---------------|---------------|-----------------------------------------|-----------------------------------------------------------|
+| Pixel 6 / 7   | ST54J         | ~~Android 15 Beta 1 → Android 15 QPR2~~ | WUPA/REQA and >16-byte frames were not reported correctly |
+| Pixel 8 / 9   | ST54L         | Android 15                              | —                                                         |
+| Pixel 10      | TBD           | From launch (Android 16)                | —                                                         |
+| Galaxy S25    | SN300 (PN544) | Android 15 QPR2                         | —                                                         |
+
+_Note: This list is not exhaustive. Devices that share the listed NFC chips, or newer models in the same families, may support Observe Mode even if they are not mentioned here._
 
 
 # Potential improvements
 
-* ~~Improve the UI by displaying polling frames inside of the RF field activity block instead of displaying field ON and OFF events as separate blocks.~~;
-* Add an ability to parse out and display additional information about the polling frame (WIP):
-  * ~~Polling frame names, including custom ones~~;
+* Add the ability to parse and display additional polling-frame details (WIP):
   * Type B:
-    * Timeslot count;
-    * AFI.
+    * REQB/WUPB:
+      * Timeslot count;
+      * AFI.
   * Type F:
-    * System code;
-    * Timeslot count;
-    * Request code.
+    * SENSF_REQ:
+      * Timeslot count;
+      * Request code.
+  * Type U:
+    * ECP:
+      * Configuration parameters;
 * Improve overall code quality:
-  * Refactor project structure, break up modules;
+  * Refactor project structure and break up modules;
   * Optimize code;
-* ~~Add an ability to enable/disable observe mode with a click of a button, allowing the device to respond to a reader if needed~~;
-* Improved interaction with the NFC service:
+* Improve interaction with the NFC service:
   * Refresh current NFC configuration state not only upon resume or start;
   * Dynamically update list of encountered errors, info about the current state.
-* ~~Ability to detect repeating polling loop patterns (frame order, type, data, delta, field events), and provide an option to only display the unique part instead of the whole history~~:
-  * Improve polling loop pattern detection stability and performance, as currently a successful detection requires 2 full loops, the algorithm is pretty naive, and there could still be unmanaged corner cases with very weird loops.
-* Using the ability to find out polling loop patterns, add an ability to classify/detect specific readers based on this information;
-* Improve user interface.
+* Improve polling loop pattern detection stability and performance. Detection currently requires two full loops, the algorithm is naive, and unusual loops still cause edge cases.
+* Leverage the detected polling loop patterns to classify or detect specific readers based on that information;
+
+
+
+# Related terminology
+
+* **Polling Loop Annotation** – a non-standard frame sent by an NFC reader in a discovery loop to provide additional context about the reader field;
+* **[Polling Loop (Pattern) Filter](https://developer.android.com/reference/android/nfc/cardemulation/CardEmulation#registerPollingLoopFilterForService(android.content.ComponentName,%20java.lang.String,%20boolean))** – an application-defined filter that asks the OS to forward NFC communication whenever the corresponding frame is detected in a polling loop;
+* **[Exit Frame](https://developer.android.com/reference/android/nfc/NfcAdapter#isExitFramesSupported())** – an enhancement of a Polling Loop Filter that allows the NFC controller to pass a transaction through as soon as the matching pattern appears.
 
 
 # Notes
 
-* This project has been created without much prior experience with Android development. In case you have found an issue with the app, or can propose an improvement to the source code, feel free to raise an Issue or create a Pull Request.
+* This project has been created without much prior experience with Android development. In case you have found an issue with the app, or can propose an improvement to the source code, feel free to raise an Issue or create a Pull Request;
+* If you encounter a device that supports Observe Mode but is missing from the [Supported devices](#supported-devices) table, please mention it in an Issue or open a PR.
+
 
 
 # References

@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.pm.PackageInfoCompat
+import kotlinx.parcelize.IgnoredOnParcel
 import java.time.Instant
 import java.time.Instant.now
 import kotlin.experimental.and
@@ -106,6 +107,19 @@ class PollingLoopEvent(
             ON,
             OFF -> ""
             else -> parseOtherFrameTypes(hex)
+        }
+    }
+
+    @IgnoredOnParcel
+    val typeName: String by lazy {
+        return@lazy when (type) {
+            A -> "A"
+            B -> "B"
+            F -> "F"
+            UNKNOWN -> "U"
+            ON -> "O"
+            OFF -> "X"
+            else -> "U*"
         }
     }
 }
@@ -569,9 +583,9 @@ inline fun <reified T> largestRepeatingSequence(
     noinline comparator: (T, T) -> Boolean,
 ): Array<T> {
     val possibilities = mutableListOf<Array<T>>()
-    for (start in 0 until Math.ceil((arr.size / 2).toDouble()).toInt()) {
+    for (start in 0 until ceil(arr.size / 2.0).toInt()) {
         for (end in start until arr.size) {
-            val pattern = arr.copyOfRange(start, end)
+            val pattern = arr.copyOfRange(start, end + 1)
             if (arr.containsSubArray(pattern.repeat(2), comparator)) {
                 possibilities.add(pattern)
             }
@@ -673,6 +687,7 @@ fun buildPollingExportPayload(
         val frameJson =
             JSONObject().apply {
                 put("timestamp", event.timestamp)
+                put("type", event.typeName)
                 put("data", event.data.toHexString())
                 put("vendorSpecificGain", event.vendorSpecificGain)
                 event.name.takeIf { it.isNotBlank() }?.let { put("name", it) }
